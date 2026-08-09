@@ -84,4 +84,7 @@ replaceable scalar cluster. The platform owns I/D cache, BIU, DTCM, DMA and the
 ASIC execution units. A stateless shared classifier owns the 32-bit versus
 64-bit instruction format; edge-rv adds dual-issue/RTU/snapshot policy around
 it, while edge-rv-lite consumes one classified instruction at a time. The lite
-cache adapters are the first implemented part of that boundary.
+cache adapters and `edge_rv_lite_cached_core` now compose the bootable core with
+the maintained I/D caches. The remaining platform step is to connect their
+line refill/writeback boundary to the existing BIU/AXI arbiter and then add the
+serialized ASIC command path.

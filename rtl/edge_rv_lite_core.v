@@ -1,7 +1,8 @@
 `timescale 1ns/1ps
 // Bootable RV64IM_Zba three-stage core. Variable-latency EX freezes IF/ID.
 module edge_rv_lite_core #(
-  parameter PC_WIDTH = 40
+  parameter PC_WIDTH = 40,
+  parameter DMEM_RESP_FORMATTED = 0
 ) (
   input wire clk, input wire reset_n,
   output wire imem_req_valid, input wire imem_req_ready,
@@ -115,7 +116,8 @@ module edge_rv_lite_core #(
 
   wire lsu_ready,lsu_done,lsu_error,lsu_busy; wire [63:0] lsu_value;
   wire lsu_start=ex_valid&&legal_mem&&!mem_started_q;
-  edge_rv_lite_lsu lsu(.clk(clk),.reset_n(reset_n),.op_valid(lsu_start),
+  edge_rv_lite_lsu #(.MEM_RESP_FORMATTED(DMEM_RESP_FORMATTED)) lsu(
+    .clk(clk),.reset_n(reset_n),.op_valid(lsu_start),
     .op_ready(lsu_ready),.op_store(is_store),.op_funct3(f3),
     .op_base(ex_rs1_value),.op_offset(is_store?imm_s:imm_i),
     .op_store_data(ex_rs2_value),.mem_req_valid(dmem_req_valid),

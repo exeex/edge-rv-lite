@@ -2,7 +2,8 @@
 // One memory instruction at a time: capture, request, wait for completion.
 module edge_rv_lite_lsu #(
   parameter VALUE_WIDTH = 64,
-  parameter STORE_ACK_ON_ACCEPT = 0
+  parameter STORE_ACK_ON_ACCEPT = 0,
+  parameter MEM_RESP_FORMATTED = 0
 ) (
   input  wire                   clk,
   input  wire                   reset_n,
@@ -99,7 +100,8 @@ module edge_rv_lite_lsu #(
         state_q <= IDLE;
         op_done <= 1'b1;
         op_error <= mem_resp_error;
-        op_load_value <= store_q ? {VALUE_WIDTH{1'b0}} : formatted_load;
+        op_load_value <= store_q ? {VALUE_WIDTH{1'b0}} :
+                         (MEM_RESP_FORMATTED ? mem_resp_rdata : formatted_load);
       end
     end
   end

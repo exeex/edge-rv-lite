@@ -78,6 +78,57 @@ add_test(NAME edge_rv_lite_coremark
 set_tests_properties(edge_rv_lite_coremark PROPERTIES
   REQUIRED_FILES "${EDGE_COREMARK_MEM64}" TIMEOUT 30)
 
+set(CACHED_CORE_RTL
+  ${CORE_RTL}
+  ${CMAKE_CURRENT_LIST_DIR}/rtl/edge_rv_lite_icache_adapter.v
+  ${CMAKE_CURRENT_LIST_DIR}/rtl/edge_rv_lite_dcache_adapter.v
+  ${EDGE_RV_ROOT}/edge_ifu_icache/rtl/edge_ifu_icache_data_array.v
+  ${EDGE_RV_ROOT}/edge_ifu_icache/rtl/edge_ifu_icache_tag_array.v
+  ${EDGE_RV_ROOT}/edge_ifu_icache/edge_ifu_icache.v
+  ${EDGE_RV_ROOT}/edge_dcache/rtl/edge_dcache_mshr.v
+  ${EDGE_RV_ROOT}/edge_dcache/rtl/edge_dcache_hit_queue.v
+  ${EDGE_RV_ROOT}/edge_dcache/rtl/edge_dcache_lookup_buffer.v
+  ${EDGE_RV_ROOT}/edge_dcache/rtl/edge_dcache_registered_lookup_buffer.v
+  ${EDGE_RV_ROOT}/edge_dcache/rtl/edge_dcache_lookup_scheduler.v
+  ${EDGE_RV_ROOT}/edge_dcache/rtl/edge_dcache_pair_predictor.v
+  ${EDGE_RV_ROOT}/edge_dcache/rtl/edge_dcache_banked_data_array.v
+  ${EDGE_RV_ROOT}/edge_dcache/rtl/edge_dcache_tag_array.v
+  ${EDGE_RV_ROOT}/edge_dcache/rtl/edge_dcache_dirty_array.v
+  ${EDGE_RV_ROOT}/edge_dcache/edge_dcache.v
+  ${CMAKE_CURRENT_LIST_DIR}/rtl/edge_rv_lite_cached_core.v)
+
+add_custom_command(
+  OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/cached_core_obj/Vedge_rv_lite_cached_core_tb
+  COMMAND ${VERILATOR} --binary --timing -Wno-fatal
+          --top-module edge_rv_lite_cached_core_tb
+          --Mdir ${CMAKE_CURRENT_BINARY_DIR}/cached_core_obj
+          ${CACHED_CORE_RTL}
+          ${CMAKE_CURRENT_LIST_DIR}/tests/edge_rv_lite_cached_core_tb.v
+  DEPENDS ${CACHED_CORE_RTL}
+          ${CMAKE_CURRENT_LIST_DIR}/tests/edge_rv_lite_cached_core_tb.v)
+add_custom_target(edge_rv_lite_cached_core_vvp ALL
+  DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/cached_core_obj/Vedge_rv_lite_cached_core_tb)
+add_test(NAME edge_rv_lite_cached_core
+  COMMAND ${CMAKE_CURRENT_BINARY_DIR}/cached_core_obj/Vedge_rv_lite_cached_core_tb)
+set_tests_properties(edge_rv_lite_cached_core PROPERTIES TIMEOUT 30)
+
+add_custom_command(
+  OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/cached_coremark_obj/Vedge_rv_lite_cached_coremark_tb
+  COMMAND ${VERILATOR} --binary --timing -Wno-fatal
+          --top-module edge_rv_lite_cached_coremark_tb
+          --Mdir ${CMAKE_CURRENT_BINARY_DIR}/cached_coremark_obj
+          ${CACHED_CORE_RTL}
+          ${CMAKE_CURRENT_LIST_DIR}/tests/edge_rv_lite_cached_coremark_tb.v
+  DEPENDS ${CACHED_CORE_RTL}
+          ${CMAKE_CURRENT_LIST_DIR}/tests/edge_rv_lite_cached_coremark_tb.v)
+add_custom_target(edge_rv_lite_cached_coremark_vvp
+  DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/cached_coremark_obj/Vedge_rv_lite_cached_coremark_tb)
+add_test(NAME edge_rv_lite_cached_coremark
+  COMMAND ${CMAKE_CURRENT_BINARY_DIR}/cached_coremark_obj/Vedge_rv_lite_cached_coremark_tb
+          +mem64=${EDGE_COREMARK_MEM64})
+set_tests_properties(edge_rv_lite_cached_coremark PROPERTIES
+  REQUIRED_FILES "${EDGE_COREMARK_MEM64}" TIMEOUT 60)
+
 foreach(adapter IN ITEMS icache dcache)
   add_custom_command(
     OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${adapter}_adapter_obj/Vedge_rv_lite_${adapter}_adapter_tb
