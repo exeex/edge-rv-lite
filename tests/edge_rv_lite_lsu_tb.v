@@ -7,6 +7,7 @@ module edge_rv_lite_lsu_tb;
   wire op_ready, mem_req_valid, mem_req_write;
   reg mem_req_ready = 0;
   wire [63:0] mem_req_addr, mem_req_wdata; wire [7:0] mem_req_wstrb;
+  wire [1:0] mem_req_size; wire mem_req_signed;
   reg mem_resp_valid = 0, mem_resp_error = 0;
   reg [63:0] mem_resp_rdata = 0;
   wire op_done, op_error; wire [63:0] op_load_value; wire busy;

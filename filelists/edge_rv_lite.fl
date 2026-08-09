@@ -18,5 +18,7 @@ ${EDGE_RV_ROOT}/edge_fpu_fmac/edge_fpu_fmac.v
 ${EDGE_RV_LITE_ROOT}/rtl/edge_rv_lite_decode.v
 ${EDGE_RV_LITE_ROOT}/rtl/edge_rv_lite_frontend.v
 ${EDGE_RV_LITE_ROOT}/rtl/edge_rv_lite_lsu.v
+${EDGE_RV_LITE_ROOT}/rtl/edge_rv_lite_icache_adapter.v
+${EDGE_RV_LITE_ROOT}/rtl/edge_rv_lite_dcache_adapter.v
 ${EDGE_RV_LITE_ROOT}/rtl/edge_rv_lite_pipeline.v
 ${EDGE_RV_LITE_ROOT}/rtl/edge_rv_lite_core.v

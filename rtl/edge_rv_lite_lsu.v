@@ -19,6 +19,8 @@ module edge_rv_lite_lsu #(
   output wire [VALUE_WIDTH-1:0] mem_req_addr,
   output wire [VALUE_WIDTH-1:0] mem_req_wdata,
   output wire [7:0]             mem_req_wstrb,
+  output wire [1:0]             mem_req_size,
+  output wire                   mem_req_signed,
   input  wire                   mem_resp_valid,
   input  wire                   mem_resp_error,
   input  wire [VALUE_WIDTH-1:0] mem_resp_rdata,
@@ -49,6 +51,8 @@ module edge_rv_lite_lsu #(
   assign mem_req_addr = addr_q;
   assign mem_req_wdata = shifted_store;
   assign mem_req_wstrb = base_strobe << byte_offset;
+  assign mem_req_size = size;
+  assign mem_req_signed = !funct3_q[2];
 
   always @* begin
     case (size)

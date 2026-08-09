@@ -76,3 +76,32 @@ add_test(NAME edge_rv_lite_coremark
           +mem64=${EDGE_COREMARK_MEM64})
 set_tests_properties(edge_rv_lite_coremark PROPERTIES
   REQUIRED_FILES "${EDGE_COREMARK_MEM64}" TIMEOUT 30)
+
+foreach(adapter IN ITEMS icache dcache)
+  add_custom_command(
+    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${adapter}_adapter_obj/Vedge_rv_lite_${adapter}_adapter_tb
+    COMMAND ${VERILATOR} --binary --timing
+            --top-module edge_rv_lite_${adapter}_adapter_tb
+            --Mdir ${CMAKE_CURRENT_BINARY_DIR}/${adapter}_adapter_obj
+            ${CMAKE_CURRENT_LIST_DIR}/rtl/edge_rv_lite_${adapter}_adapter.v
+            ${CMAKE_CURRENT_LIST_DIR}/tests/edge_rv_lite_${adapter}_adapter_tb.v
+    DEPENDS ${CMAKE_CURRENT_LIST_DIR}/rtl/edge_rv_lite_${adapter}_adapter.v
+            ${CMAKE_CURRENT_LIST_DIR}/tests/edge_rv_lite_${adapter}_adapter_tb.v)
+  add_custom_target(edge_rv_lite_${adapter}_adapter_vvp ALL
+    DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${adapter}_adapter_obj/Vedge_rv_lite_${adapter}_adapter_tb)
+  add_test(NAME edge_rv_lite_${adapter}_adapter
+    COMMAND ${CMAKE_CURRENT_BINARY_DIR}/${adapter}_adapter_obj/Vedge_rv_lite_${adapter}_adapter_tb)
+endforeach()
+
+add_custom_command(
+  OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/decode_obj/Vedge_rv_lite_decode_tb
+  COMMAND ${VERILATOR} --binary --timing --top-module edge_rv_lite_decode_tb
+          --Mdir ${CMAKE_CURRENT_BINARY_DIR}/decode_obj
+          ${CMAKE_CURRENT_LIST_DIR}/rtl/edge_rv_lite_decode.v
+          ${CMAKE_CURRENT_LIST_DIR}/tests/edge_rv_lite_decode_tb.v
+  DEPENDS ${CMAKE_CURRENT_LIST_DIR}/rtl/edge_rv_lite_decode.v
+          ${CMAKE_CURRENT_LIST_DIR}/tests/edge_rv_lite_decode_tb.v)
+add_custom_target(edge_rv_lite_decode_vvp ALL
+  DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/decode_obj/Vedge_rv_lite_decode_tb)
+add_test(NAME edge_rv_lite_decode
+  COMMAND ${CMAKE_CURRENT_BINARY_DIR}/decode_obj/Vedge_rv_lite_decode_tb)

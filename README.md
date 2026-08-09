@@ -78,3 +78,10 @@ The current bootable core covers RV64IM_Zba, `rdcycle`, `rdinstret`, and the
 crt0 `ebreak`. The Edge predecoder describes the eventual ASIC routing surface;
 connecting that routing and the cache/BIU-compatible product wrapper is the
 next integration slice, not part of the standalone CoreMark test yet.
+
+The integration boundary is intentionally split into a shared platform and a
+replaceable scalar cluster. The platform owns I/D cache, BIU, DTCM, DMA and the
+ASIC execution units. A stateless shared classifier owns the 32-bit versus
+64-bit instruction format; edge-rv adds dual-issue/RTU/snapshot policy around
+it, while edge-rv-lite consumes one classified instruction at a time. The lite
+cache adapters are the first implemented part of that boundary.

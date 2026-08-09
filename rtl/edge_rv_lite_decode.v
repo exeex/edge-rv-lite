@@ -29,7 +29,8 @@ module edge_rv_lite_decode (
   assign rs2 = inst[24:20];
   assign accel_subop = inst[38:32];
 
-  wire edge64 = inst_is_64b && (opcode == 7'h3f) && !inst[39];
+  wire edge64 = inst_is_64b && (opcode == 7'h3f);
+  wire edge64_is_tensor = edge64 && inst[39];
   wire zba_op = (opcode == 7'h33) && (funct7 == 7'b0010000) &&
                 ((funct3 == 3'b010) || (funct3 == 3'b100) ||
                  (funct3 == 3'b110));
@@ -87,15 +88,18 @@ module edge_rv_lite_decode (
     legal = 1'b1;
     if (edge64) begin
       op_class = CLASS_ACCEL;
-      // Same allocated Edge sub-op set as edge-rv predecode.
-      case (accel_subop)
-        7'h01, 7'h02, 7'h03, 7'h04, 7'h05, 7'h06, 7'h07, 7'h08,
-        7'h10, 7'h11, 7'h12, 7'h13, 7'h14, 7'h16, 7'h17, 7'h18,
-        7'h1a, 7'h1d, 7'h20, 7'h21, 7'h22, 7'h23, 7'h24, 7'h26,
-        7'h27, 7'h28, 7'h29, 7'h2a, 7'h2b, 7'h2c, 7'h2e, 7'h2f:
-          legal = 1'b1;
-        default: legal = 1'b0;
-      endcase
+      // Vector legality remains owned by its execution decoder. Tensor/ASIC
+      // commands use the same allocated sub-op set as edge-rv predecode.
+      if (edge64_is_tensor) begin
+        case (accel_subop)
+          7'h01, 7'h02, 7'h03, 7'h04, 7'h05, 7'h06, 7'h07, 7'h08,
+          7'h10, 7'h11, 7'h12, 7'h13, 7'h14, 7'h16, 7'h17, 7'h18,
+          7'h1a, 7'h1d, 7'h20, 7'h21, 7'h22, 7'h23, 7'h24, 7'h26,
+          7'h27, 7'h28, 7'h29, 7'h2a, 7'h2b, 7'h2c, 7'h2e, 7'h2f:
+            legal = 1'b1;
+          default: legal = 1'b0;
+        endcase
+      end
     end else if (inst_is_64b) begin
       legal = 1'b0;
     end else if (legal_op || legal_op_imm || legal_op32 || legal_op_imm32 ||

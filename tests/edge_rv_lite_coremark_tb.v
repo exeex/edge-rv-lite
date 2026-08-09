@@ -45,6 +45,7 @@ module edge_rv_lite_coremark_tb;
     .dmem_req_valid(dmem_req_valid), .dmem_req_ready(1'b1),
     .dmem_req_write(dmem_req_write), .dmem_req_addr(dmem_req_addr),
     .dmem_req_wdata(dmem_req_wdata), .dmem_req_wstrb(dmem_req_wstrb),
+    .dmem_req_size(), .dmem_req_signed(),
     .dmem_resp_valid(dmem_resp_valid), .dmem_resp_error(dmem_resp_error),
     .dmem_resp_rdata(dmem_resp_rdata), .halted(halted), .illegal(illegal),
     .debug_x31(debug_x31), .cycle_count(cycle_count),

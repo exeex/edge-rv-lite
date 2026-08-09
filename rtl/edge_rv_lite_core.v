@@ -11,6 +11,7 @@ module edge_rv_lite_core #(
   output wire dmem_req_valid, input wire dmem_req_ready,
   output wire dmem_req_write, output wire [63:0] dmem_req_addr,
   output wire [63:0] dmem_req_wdata, output wire [7:0] dmem_req_wstrb,
+  output wire [1:0] dmem_req_size, output wire dmem_req_signed,
   input wire dmem_resp_valid, input wire dmem_resp_error,
   input wire [63:0] dmem_resp_rdata,
   output reg halted, output reg illegal,
@@ -120,7 +121,8 @@ module edge_rv_lite_core #(
     .op_store_data(ex_rs2_value),.mem_req_valid(dmem_req_valid),
     .mem_req_ready(dmem_req_ready),.mem_req_write(dmem_req_write),
     .mem_req_addr(dmem_req_addr),.mem_req_wdata(dmem_req_wdata),
-    .mem_req_wstrb(dmem_req_wstrb),.mem_resp_valid(dmem_resp_valid),
+    .mem_req_wstrb(dmem_req_wstrb),.mem_req_size(dmem_req_size),
+    .mem_req_signed(dmem_req_signed),.mem_resp_valid(dmem_resp_valid),
     .mem_resp_error(dmem_resp_error),.mem_resp_rdata(dmem_resp_rdata),
     .op_done(lsu_done),.op_error(lsu_error),.op_load_value(lsu_value),.busy(lsu_busy));
 
