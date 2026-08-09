@@ -1,0 +1,19 @@
+# Shared, bit-identical edge-rv execution units. Parent defines both roots.
+${EDGE_RV_ROOT}/edge_scalar_fast_alu/edge_scalar_fast_alu.v
+${EDGE_RV_ROOT}/edge_scalar_branch/edge_scalar_branch.v
+${EDGE_RV_ROOT}/edge_scalar_muldiv/edge_scalar_muldiv.v
+${EDGE_RV_ROOT}/edge_scalar_divrem/edge_scalar_divrem.v
+${EDGE_RV_ROOT}/edge_scalar_alu/edge_scalar_alu.v
+${EDGE_RV_ROOT}/edge_fpu_misc/edge_fpu_misc.v
+${EDGE_RV_ROOT}/edge_fpu_cvt/edge_fpu_cvt.v
+${EDGE_RV_ROOT}/edge_fpu_complete_queue/edge_fpu_complete_queue.v
+${EDGE_RV_ROOT}/edge_fpu_slow/edge_fpu_slow.v
+${EDGE_RV_ROOT}/edge_fpu_fmac/rtl/edge_fpu_fmac_align_add.v
+${EDGE_RV_ROOT}/edge_fpu_fmac/rtl/edge_fpu_fmac_narrow_fmadd.v
+${EDGE_RV_ROOT}/edge_fpu_fmac/rtl/edge_fpu_fmac_fp32_round_pack.v
+${EDGE_RV_ROOT}/edge_fpu_fmac/rtl/edge_fpu_fmac_narrow_shift_sticky_2stage.v
+${EDGE_RV_ROOT}/edge_fpu_fmac/rtl/edge_fpu_fmac_fp32_unpack.v
+${EDGE_RV_ROOT}/edge_fpu_fmac/rtl/edge_fpu_fmac_fp32_fused_round_pack.v
+${EDGE_RV_ROOT}/edge_fpu_fmac/edge_fpu_fmac.v
+${EDGE_RV_LITE_ROOT}/rtl/edge_rv_lite_decode.v
+${EDGE_RV_LITE_ROOT}/rtl/edge_rv_lite_serial_ctrl.v
