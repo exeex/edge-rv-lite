@@ -5,6 +5,7 @@ find_program(VERILATOR verilator REQUIRED)
 enable_testing()
 
 set(RTL
+  ${CMAKE_CURRENT_LIST_DIR}/../edge-rv/edge_instruction_classifier/edge_instruction_classifier.v
   ${CMAKE_CURRENT_LIST_DIR}/rtl/edge_rv_lite_decode.v
   ${CMAKE_CURRENT_LIST_DIR}/rtl/edge_rv_lite_pipeline.v)
 
@@ -97,9 +98,11 @@ add_custom_command(
   OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/decode_obj/Vedge_rv_lite_decode_tb
   COMMAND ${VERILATOR} --binary --timing --top-module edge_rv_lite_decode_tb
           --Mdir ${CMAKE_CURRENT_BINARY_DIR}/decode_obj
+          ${EDGE_RV_ROOT}/edge_instruction_classifier/edge_instruction_classifier.v
           ${CMAKE_CURRENT_LIST_DIR}/rtl/edge_rv_lite_decode.v
           ${CMAKE_CURRENT_LIST_DIR}/tests/edge_rv_lite_decode_tb.v
-  DEPENDS ${CMAKE_CURRENT_LIST_DIR}/rtl/edge_rv_lite_decode.v
+  DEPENDS ${EDGE_RV_ROOT}/edge_instruction_classifier/edge_instruction_classifier.v
+          ${CMAKE_CURRENT_LIST_DIR}/rtl/edge_rv_lite_decode.v
           ${CMAKE_CURRENT_LIST_DIR}/tests/edge_rv_lite_decode_tb.v)
 add_custom_target(edge_rv_lite_decode_vvp ALL
   DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/decode_obj/Vedge_rv_lite_decode_tb)

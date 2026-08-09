@@ -5,6 +5,7 @@ ${EDGE_RV_ROOT}/edge_scalar_muldiv/edge_scalar_muldiv.v
 ${EDGE_RV_ROOT}/edge_scalar_muldiv/edge_scalar_muldiv_leaf.v
 ${EDGE_RV_ROOT}/edge_scalar_divrem/edge_scalar_divrem.v
 ${EDGE_RV_ROOT}/edge_scalar_alu/edge_scalar_alu.v
+${EDGE_RV_ROOT}/edge_instruction_classifier/edge_instruction_classifier.v
 ${EDGE_RV_ROOT}/edge_fpu_misc/edge_fpu_misc.v
 ${EDGE_RV_ROOT}/edge_fpu_cvt/edge_fpu_cvt.v
 ${EDGE_RV_ROOT}/edge_fpu_slow/edge_fpu_slow.v
