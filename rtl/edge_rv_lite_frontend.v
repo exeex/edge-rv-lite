@@ -25,18 +25,28 @@ module edge_rv_lite_frontend #(
   reg request_pending_q;
   reg request_killed_q;
   reg [PC_WIDTH-1:0] request_pc_q;
-  reg decode_valid_q;
-  reg [PC_WIDTH-1:0] decode_pc_q;
-  reg [31:0] decode_inst_q;
-  reg decode_error_q;
+  reg [1:0] fifo_count_q;
+  reg fifo_read_q, fifo_write_q;
+  reg [PC_WIDTH-1:0] fifo_pc_q [0:1];
+  reg [31:0] fifo_inst_q [0:1];
+  reg fifo_error_q [0:1];
 
-  assign imem_req_valid = !request_pending_q && !decode_valid_q &&
-                          !redirect_valid;
+  wire request_fire = imem_req_valid && imem_req_ready;
+  wire response_fire = imem_resp_valid && request_pending_q;
+  wire response_push = response_fire && !request_killed_q && !redirect_valid;
+  wire output_pop = op_valid && op_ready;
+  wire [2:0] reserved_count = {1'b0, fifo_count_q} + request_pending_q;
+  wire reservation_space = (reserved_count < 3'd2) ||
+                           (output_pop && (reserved_count == 3'd2));
+  // A response and the next request may cross. The two-entry IF FIFO provides
+  // the skid slot required when EX starts a variable-latency stall.
+  assign imem_req_valid = (!request_pending_q || response_fire) &&
+                          reservation_space && !redirect_valid;
   assign imem_req_addr = fetch_pc_q;
-  assign op_valid = decode_valid_q && !redirect_valid;
-  assign op_pc = decode_pc_q;
-  assign op_inst = decode_inst_q;
-  assign op_error = decode_error_q;
+  assign op_valid = (fifo_count_q != 0) && !redirect_valid;
+  assign op_pc = fifo_pc_q[fifo_read_q];
+  assign op_inst = fifo_inst_q[fifo_read_q];
+  assign op_error = fifo_error_q[fifo_read_q];
 
   always @(posedge clk or negedge reset_n) begin
     if (!reset_n) begin
@@ -44,31 +54,48 @@ module edge_rv_lite_frontend #(
       request_pending_q <= 1'b0;
       request_killed_q <= 1'b0;
       request_pc_q <= RESET_PC;
-      decode_valid_q <= 1'b0;
-      decode_pc_q <= RESET_PC;
-      decode_inst_q <= 32'h0000_0013;
-      decode_error_q <= 1'b0;
+      fifo_count_q <= 2'd0;
+      fifo_read_q <= 1'b0;
+      fifo_write_q <= 1'b0;
+      fifo_pc_q[0] <= RESET_PC;
+      fifo_pc_q[1] <= RESET_PC;
+      fifo_inst_q[0] <= 32'h0000_0013;
+      fifo_inst_q[1] <= 32'h0000_0013;
+      fifo_error_q[0] <= 1'b0;
+      fifo_error_q[1] <= 1'b0;
     end else begin
-      if (imem_req_valid && imem_req_ready) begin
+      if (request_fire) begin
         request_pending_q <= 1'b1;
         request_killed_q <= 1'b0;
         request_pc_q <= fetch_pc_q;
+        fetch_pc_q <= fetch_pc_q + {{(PC_WIDTH-3){1'b0}}, 3'd4};
       end
-      if (imem_resp_valid && request_pending_q) begin
+      if (response_fire) begin
         request_pending_q <= 1'b0;
-        if (!request_killed_q && !redirect_valid) begin
-          decode_valid_q <= 1'b1;
-          decode_pc_q <= request_pc_q;
-          decode_inst_q <= imem_resp_data;
-          decode_error_q <= imem_resp_error;
-          fetch_pc_q <= request_pc_q + {{(PC_WIDTH-3){1'b0}}, 3'd4};
-        end
+        request_killed_q <= 1'b0;
       end
-      if (op_valid && op_ready) decode_valid_q <= 1'b0;
+      // A crossing request owns the newly freed outstanding slot.
+      if (request_fire) request_pending_q <= 1'b1;
+
+      if (response_push) begin
+        fifo_pc_q[fifo_write_q] <= request_pc_q;
+        fifo_inst_q[fifo_write_q] <= imem_resp_data;
+        fifo_error_q[fifo_write_q] <= imem_resp_error;
+        fifo_write_q <= ~fifo_write_q;
+      end
+      if (output_pop) fifo_read_q <= ~fifo_read_q;
+      case ({response_push, output_pop})
+        2'b10: fifo_count_q <= fifo_count_q + 1'b1;
+        2'b01: fifo_count_q <= fifo_count_q - 1'b1;
+        default: fifo_count_q <= fifo_count_q;
+      endcase
+
       if (redirect_valid) begin
         fetch_pc_q <= redirect_pc;
-        decode_valid_q <= 1'b0;
-        if (request_pending_q && !imem_resp_valid) request_killed_q <= 1'b1;
+        fifo_count_q <= 2'd0;
+        fifo_read_q <= 1'b0;
+        fifo_write_q <= 1'b0;
+        if (request_pending_q && !response_fire) request_killed_q <= 1'b1;
       end
     end
   end

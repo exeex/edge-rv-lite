@@ -21,13 +21,19 @@ module edge_rv_lite_frontend_redirect_tb;
   endtask
 
   initial begin
+    fork
+      begin
+        repeat (200) @(posedge clk);
+        $fatal(1, "frontend redirect timeout");
+      end
+    join_none
     repeat (2) @(posedge clk); reset_n <= 1;
     respond(32'h0000_0093);
     wait (op_valid);
     if (op_pc != 0) begin $display("bad reset PC"); $finish; end
     // Model EX resolving a taken branch while a sequential fetch is pending.
-    @(posedge clk); op_ready <= 0;
-    wait (imem_req_valid); @(posedge clk);
+    op_ready <= 0;
+    wait (dut.request_pending_q); @(posedge clk);
     redirect_pc <= 40'h80; redirect_valid <= 1;
     @(posedge clk); redirect_valid <= 0;
     // Return the killed sequential response; it must never issue.

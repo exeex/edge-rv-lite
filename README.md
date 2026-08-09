@@ -65,8 +65,16 @@ normal top would still synthesize its RTU and queues.
 
 ```sh
 cmake -S . -B build
-cmake --build build --target test
+cmake --build build --target edge_rv_lite_coremark_vvp
+ctest --test-dir build --output-on-failure
 ```
 
-The first proof slice checks decode routing and demonstrates that scalar and
-accelerator start remain blocked until the current operation completes.
+The `edge_rv_lite_coremark` test runs the exact RV64 CoreMark memory image built
+by the parent edge-e3 harness. The first bootable result retires 616,228
+instructions, matching edge-rv instruction-for-instruction, and returns a
+measured CoreMark interval of 724,712 cycles before the crt0 `ebreak`.
+
+The current bootable core covers RV64IM_Zba, `rdcycle`, `rdinstret`, and the
+crt0 `ebreak`. The Edge predecoder describes the eventual ASIC routing surface;
+connecting that routing and the cache/BIU-compatible product wrapper is the
+next integration slice, not part of the standalone CoreMark test yet.
