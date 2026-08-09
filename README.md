@@ -18,8 +18,9 @@ Branches, JAL and JALR resolve in X. A taken control transfer clears F and D,
 then restarts fetch at the target. There is no predictor or epoch machinery;
 the fixed taken penalty is the intended area tradeoff.
 
-There is exactly one in-flight instruction. Scalar and accelerator operations
-are mutually exclusive under one owner bit. Consequently the core has no RTU,
+Fast instructions overlap across the three stages, but only EX may start an
+operation. An unfinished EX freezes IF and ID, so variable-latency operations
+remain strictly one at a time. Consequently the core has no RTU,
 sequence ID, epoch, snapshot, scoreboard, completion arbitration, replay queue,
 or multi-port writeback. Accelerator operands are read only when its request is
 accepted, and the core cannot execute a younger register write until that
@@ -39,6 +40,10 @@ ACTU/CMPU/get-CSR envelope selected by the `7'h3f` length marker.
 The ALU, branch, MUL/DIV and FPU RTL is not forked: the lite filelist references
 the implementations in `../edge-rv` directly. Lite owns only predecode/control,
 the one-entry LSU/BIU path, and the serialized ASIC glue.
+
+The "one-entry LSU" is not an outstanding queue. It is one request register and
+a three-state `IDLE -> REQUEST -> RESPONSE` controller. The whole core waits for
+that response before another instruction may enter execution.
 
 ## Drop-in boundary
 
@@ -64,4 +69,4 @@ cmake --build build --target test
 ```
 
 The first proof slice checks decode routing and demonstrates that scalar and
-accelerator issue remain blocked until the current operation completes.
+accelerator start remain blocked until the current operation completes.

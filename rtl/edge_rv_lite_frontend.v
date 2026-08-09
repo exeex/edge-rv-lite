@@ -13,11 +13,11 @@ module edge_rv_lite_frontend #(
   input  wire                imem_resp_valid,
   input  wire [31:0]         imem_resp_data,
   input  wire                imem_resp_error,
-  output wire                issue_valid,
-  input  wire                issue_ready,
-  output wire [PC_WIDTH-1:0] issue_pc,
-  output wire [31:0]         issue_inst,
-  output wire                issue_error,
+  output wire                op_valid,
+  input  wire                op_ready,
+  output wire [PC_WIDTH-1:0] op_pc,
+  output wire [31:0]         op_inst,
+  output wire                op_error,
   input  wire                redirect_valid,
   input  wire [PC_WIDTH-1:0] redirect_pc
 );
@@ -33,10 +33,10 @@ module edge_rv_lite_frontend #(
   assign imem_req_valid = !request_pending_q && !decode_valid_q &&
                           !redirect_valid;
   assign imem_req_addr = fetch_pc_q;
-  assign issue_valid = decode_valid_q && !redirect_valid;
-  assign issue_pc = decode_pc_q;
-  assign issue_inst = decode_inst_q;
-  assign issue_error = decode_error_q;
+  assign op_valid = decode_valid_q && !redirect_valid;
+  assign op_pc = decode_pc_q;
+  assign op_inst = decode_inst_q;
+  assign op_error = decode_error_q;
 
   always @(posedge clk or negedge reset_n) begin
     if (!reset_n) begin
@@ -64,7 +64,7 @@ module edge_rv_lite_frontend #(
           fetch_pc_q <= request_pc_q + {{(PC_WIDTH-3){1'b0}}, 3'd4};
         end
       end
-      if (issue_valid && issue_ready) decode_valid_q <= 1'b0;
+      if (op_valid && op_ready) decode_valid_q <= 1'b0;
       if (redirect_valid) begin
         fetch_pc_q <= redirect_pc;
         decode_valid_q <= 1'b0;
@@ -73,4 +73,3 @@ module edge_rv_lite_frontend #(
     end
   end
 endmodule
-
