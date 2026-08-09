@@ -18,3 +18,17 @@ add_custom_target(edge_rv_lite_tb_vvp ALL
   DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/obj_dir/Vedge_rv_lite_tb)
 add_test(NAME edge_rv_lite_serial
   COMMAND ${CMAKE_CURRENT_BINARY_DIR}/obj_dir/Vedge_rv_lite_tb)
+
+add_custom_command(
+  OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/redirect_obj/Vedge_rv_lite_frontend_redirect_tb
+  COMMAND ${VERILATOR} --binary --timing
+          --top-module edge_rv_lite_frontend_redirect_tb
+          --Mdir ${CMAKE_CURRENT_BINARY_DIR}/redirect_obj
+          ${CMAKE_CURRENT_LIST_DIR}/rtl/edge_rv_lite_frontend.v
+          ${CMAKE_CURRENT_LIST_DIR}/tests/edge_rv_lite_frontend_redirect_tb.v
+  DEPENDS ${CMAKE_CURRENT_LIST_DIR}/rtl/edge_rv_lite_frontend.v
+          ${CMAKE_CURRENT_LIST_DIR}/tests/edge_rv_lite_frontend_redirect_tb.v)
+add_custom_target(edge_rv_lite_frontend_redirect_vvp ALL
+  DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/redirect_obj/Vedge_rv_lite_frontend_redirect_tb)
+add_test(NAME edge_rv_lite_frontend_redirect
+  COMMAND ${CMAKE_CURRENT_BINARY_DIR}/redirect_obj/Vedge_rv_lite_frontend_redirect_tb)

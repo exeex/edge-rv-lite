@@ -14,6 +14,10 @@ The core is single issue and has three architectural stages:
 3. **X/W** owns the instruction until its one completion handshake arrives,
    then writes architectural state and accepts the next instruction.
 
+Branches, JAL and JALR resolve in X. A taken control transfer clears F and D,
+then restarts fetch at the target. There is no predictor or epoch machinery;
+the fixed taken penalty is the intended area tradeoff.
+
 There is exactly one in-flight instruction. Scalar and accelerator operations
 are mutually exclusive under one owner bit. Consequently the core has no RTU,
 sequence ID, epoch, snapshot, scoreboard, completion arbitration, replay queue,
