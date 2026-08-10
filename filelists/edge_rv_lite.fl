@@ -37,3 +37,5 @@ ${EDGE_RV_ROOT}/edge_dcache/edge_dcache.v
 ${EDGE_RV_LITE_ROOT}/rtl/edge_rv_lite_pipeline.v
 ${EDGE_RV_LITE_ROOT}/rtl/edge_rv_lite_core.v
 ${EDGE_RV_LITE_ROOT}/rtl/edge_rv_lite_cached_core.v
+${EDGE_RV_LITE_ROOT}/rtl/edge_rv_lite_cache_biu.v
+${EDGE_RV_LITE_ROOT}/rtl/edge_rv_lite_axi_core.v

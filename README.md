@@ -85,6 +85,7 @@ ASIC execution units. A stateless shared classifier owns the 32-bit versus
 64-bit instruction format; edge-rv adds dual-issue/RTU/snapshot policy around
 it, while edge-rv-lite consumes one classified instruction at a time. The lite
 cache adapters and `edge_rv_lite_cached_core` now compose the bootable core with
-the maintained I/D caches. The remaining platform step is to connect their
-line refill/writeback boundary to the existing BIU/AXI arbiter and then add the
-serialized ASIC command path.
+the maintained I/D caches. `edge_rv_lite_cache_biu` and
+`edge_rv_lite_axi_core` carry that hierarchy onto the existing 128-bit Edge AXI
+channel shape. The remaining product step is the exact `edge_core_top` control
+wrapper and serialized ASIC command path.
