@@ -41,7 +41,19 @@ module edge_rv_lite_core #(
   wire ex_valid, ex_error, ex_is_64b;
   wire [PC_WIDTH-1:0] ex_pc; wire [63:0] ex_inst;
   wire [63:0] ex_rs1_value, ex_rs2_value;
-  wire [4:0] id_rs1=id_inst[19:15], id_rs2=id_inst[24:20];
+  wire [4:0] id_scalar_rs1=id_inst[19:15], id_scalar_rs2=id_inst[24:20];
+  wire [3:0] id_decoded_class;
+  wire id_decoded_needs_capture;
+  wire [4:0] id_decoded_capture_src_gpr;
+  edge_rv_lite_decode id_decode(
+    .inst(id_inst), .inst_is_64b(id_is_64b), .op_class(id_decoded_class),
+    .legal(), .rd(), .rs1(), .rs2(), .writes_gpr(), .accel_subop(),
+    .accel_needs_capture(id_decoded_needs_capture),
+    .accel_capture_src_gpr(id_decoded_capture_src_gpr));
+  wire id_is_accel=id_is_64b&&(id_decoded_class==4'd8);
+  wire [4:0] id_rs1=id_scalar_rs1;
+  wire [4:0] id_rs2=id_is_accel ?
+    (id_decoded_needs_capture ? id_decoded_capture_src_gpr:5'd0):id_scalar_rs2;
   wire [63:0] id_rs1_raw=id_rs1==0 ? 0 : gpr[id_rs1];
   wire [63:0] id_rs2_raw=id_rs2==0 ? 0 : gpr[id_rs2];
 
@@ -87,7 +99,8 @@ module edge_rv_lite_core #(
   edge_rv_lite_decode decode(
     .inst(ex_inst), .inst_is_64b(ex_is_64b), .op_class(decoded_class),
     .legal(decoded_legal), .rd(), .rs1(), .rs2(),
-    .writes_gpr(decoded_writes_gpr), .accel_subop(decoded_accel_subop));
+    .writes_gpr(decoded_writes_gpr), .accel_subop(decoded_accel_subop),
+    .accel_needs_capture(), .accel_capture_src_gpr());
   wire is_accel=ex_is_64b&&(decoded_class==4'd8);
   wire ex_legal=is_accel ? decoded_legal :
                 (!ex_is_64b&&(legal_fast||legal_mem||legal_sys));

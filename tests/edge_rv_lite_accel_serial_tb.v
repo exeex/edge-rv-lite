@@ -30,14 +30,17 @@ module edge_rv_lite_accel_serial_tb;
   always @(posedge clk) begin
     imem_resp_valid<=imem_req_valid;
     case(imem_req_addr)
-      40'h0: imem_resp_data<=32'h0000_003f;
-      40'h4: imem_resp_data<=32'h0000_0090; // tensor.setcsr high parcel
+      40'h0: imem_resp_data<=32'h02a0_0293; // addi x5,x0,42
+      40'h4: imem_resp_data<=32'h0630_0313; // addi x6,x0,99
+      40'h8: imem_resp_data<=32'h0062_803f; // rs1/capture=x5, ordinary rs2=x6
+      40'hc: imem_resp_data<=32'h0000_00a4; // actu.setscalar
       default: imem_resp_data<=32'h0010_0073;
     endcase
     accel_resp_valid<=0;
     if(accel_req_valid&&accel_req_ready) begin
       accepted<=accepted+1; delay<=3;
-      if(accel_req_inst!=64'h0000_0090_0000_003f)
+      if(accel_req_inst!=64'h0000_00a4_0062_803f ||
+         accel_req_src0!=64'd42 || accel_req_src1!=64'd42)
         $fatal(1,"serialized accelerator payload mismatch");
     end
     if(delay>0) begin
@@ -51,12 +54,14 @@ module edge_rv_lite_accel_serial_tb;
     wait(accel_req_valid);
     repeat(3) begin
       @(posedge clk);
-      if(accel_req_inst!=64'h0000_0090_0000_003f)
-        $fatal(1,"request changed under backpressure");
+      if(accel_req_inst!=64'h0000_00a4_0062_803f ||
+         accel_req_src0!=64'd42 || accel_req_src1!=64'd42)
+        $fatal(1,"request changed under backpressure inst=%h src0=%h src1=%h",
+               accel_req_inst, accel_req_src0, accel_req_src1);
     end
     accel_req_ready<=1;
     wait(halted);
-    if(illegal||accepted!=1||instret_count!=2)
+    if(illegal||accepted!=1||instret_count!=4)
       $fatal(1,"serial accelerator completion/retire mismatch");
     $display("TEST PASS: Edge64 fetch and serialized accelerator completion");
     $finish;

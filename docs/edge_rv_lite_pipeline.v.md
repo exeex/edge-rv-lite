@@ -20,3 +20,8 @@ An Edge64 instruction remains the sole EX owner until the serialized
 accelerator request is accepted and its matching response arrives. This is a
 single-owner handshake, not a command queue: no younger scalar or accelerator
 instruction can execute while the command is outstanding.
+
+The request operands follow the shared Edge64 classifier rather than assuming
+ordinary scalar `rs1/rs2` conventions. `accel_req_src0` carries the classified
+base GPR and `accel_req_src1` carries the command-specific capture GPR;
+commands without a capture operand drive the latter to zero.
