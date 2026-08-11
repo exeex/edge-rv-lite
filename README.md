@@ -77,8 +77,8 @@ measured CoreMark interval of 724,712 cycles before the crt0 `ebreak`.
 The current bootable core covers RV64IM_Zba, `rdcycle`, `rdinstret`, and the
 crt0 `ebreak`. Ordered 32-bit fetch parcels are now assembled into complete
 Edge64 instructions and held in EX across a serialized accelerator request and
-response. Connecting that generic one-owner boundary to the product Tensor,
-ACTU, CMPU, DMA and DTCM command ports is the next integration slice.
+response. The product-side single-owner leaf now connects this boundary to the
+shared accelerator dispatch without snapshots, sequence IDs or epochs.
 
 The integration boundary is intentionally split into a shared platform and a
 replaceable scalar cluster. The platform owns I/D cache, BIU, DTCM, DMA and the
@@ -86,7 +86,9 @@ ASIC execution units. A stateless shared classifier owns the 32-bit versus
 64-bit instruction format; edge-rv adds dual-issue/RTU/snapshot policy around
 it, while edge-rv-lite consumes one classified instruction at a time. The lite
 cache adapters and `edge_rv_lite_cached_core` now compose the bootable core with
-the maintained I/D caches. `edge_rv_lite_cache_biu` and
+the maintained I/D caches. An optional stateful DTCM router bypasses D-cache for
+the configured base/mask window, acknowledges accepted stores, and retains the
+selected cache or DTCM read owner through its response. `edge_rv_lite_cache_biu` and
 `edge_rv_lite_axi_core` carry that hierarchy onto the existing 128-bit Edge AXI
-channel shape. The remaining product step is the exact `edge_core_top` control
-wrapper and serialized ASIC command path.
+channel shape. The remaining product step composes those proven boundaries with
+the shared DTCM/accelerator subsystem and external AXI ownership mux.

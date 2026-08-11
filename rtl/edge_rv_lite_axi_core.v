@@ -7,7 +7,8 @@ module edge_rv_lite_axi_core #(
   parameter AXI_ID_WIDTH = 8,
   parameter AXI_LEN_WIDTH = 8,
   parameter ICACHE_BYTES = 16384,
-  parameter DCACHE_BYTES = 16384
+  parameter DCACHE_BYTES = 16384,
+  parameter ENABLE_DTCM_PORT = 0
 ) (
   input  wire                         forever_cpuclk,
   input  wire                         cpurst_b,
@@ -49,6 +50,18 @@ module edge_rv_lite_axi_core #(
   output wire                         biu_pad_wvalid,
   input  wire                         pad_biu_wready,
 
+  input  wire [63:0]                  dtcm_base,
+  input  wire [63:0]                  dtcm_mask,
+  input  wire                         dtcm_enable,
+  output wire                         dtcm_lsu_req,
+  input  wire                         dtcm_lsu_ready,
+  output wire                         dtcm_lsu_we,
+  output wire [13:0]                  dtcm_lsu_addr,
+  output wire [63:0]                  dtcm_lsu_wdata,
+  output wire [7:0]                   dtcm_lsu_wstrb,
+  input  wire                         dtcm_lsu_rvalid,
+  input  wire [63:0]                  dtcm_lsu_rdata,
+
   output wire                         accel_req_valid,
   input  wire                         accel_req_ready,
   output wire [63:0]                  accel_req_inst,
@@ -87,7 +100,7 @@ module edge_rv_lite_axi_core #(
 
   edge_rv_lite_cached_core #(
     .PC_WIDTH(PC_WIDTH), .ICACHE_BYTES(ICACHE_BYTES),
-    .DCACHE_BYTES(DCACHE_BYTES)
+    .DCACHE_BYTES(DCACHE_BYTES),.ENABLE_DTCM_PORT(ENABLE_DTCM_PORT)
   ) cached_core (
     .clk(forever_cpuclk), .reset_n(cpurst_b),
     .imem_refill_req_valid(imem_refill_req_valid),
@@ -110,6 +123,11 @@ module edge_rv_lite_axi_core #(
     .dmem_clean_wb_data(dmem_clean_wb_data),
     .dmem_clean_wb_last(dmem_clean_wb_last),
     .dmem_clean_wb_complete(dmem_clean_wb_complete),
+    .dtcm_base(dtcm_base),.dtcm_mask(dtcm_mask),.dtcm_enable(dtcm_enable),
+    .dtcm_lsu_req(dtcm_lsu_req),.dtcm_lsu_ready(dtcm_lsu_ready),
+    .dtcm_lsu_we(dtcm_lsu_we),.dtcm_lsu_addr(dtcm_lsu_addr),
+    .dtcm_lsu_wdata(dtcm_lsu_wdata),.dtcm_lsu_wstrb(dtcm_lsu_wstrb),
+    .dtcm_lsu_rvalid(dtcm_lsu_rvalid),.dtcm_lsu_rdata(dtcm_lsu_rdata),
     .accel_req_valid(accel_req_valid), .accel_req_ready(accel_req_ready),
     .accel_req_inst(accel_req_inst), .accel_req_src0(accel_req_src0),
     .accel_req_src1(accel_req_src1), .accel_resp_valid(accel_resp_valid),

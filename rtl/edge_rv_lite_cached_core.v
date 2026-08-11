@@ -6,7 +6,8 @@
 module edge_rv_lite_cached_core #(
   parameter PC_WIDTH = 40,
   parameter ICACHE_BYTES = 16384,
-  parameter DCACHE_BYTES = 16384
+  parameter DCACHE_BYTES = 16384,
+  parameter ENABLE_DTCM_PORT = 0
 ) (
   input  wire                   clk,
   input  wire                   reset_n,
@@ -33,6 +34,18 @@ module edge_rv_lite_cached_core #(
   output wire [127:0]           dmem_clean_wb_data,
   output wire                   dmem_clean_wb_last,
   input  wire                   dmem_clean_wb_complete,
+
+  input  wire [63:0]            dtcm_base,
+  input  wire [63:0]            dtcm_mask,
+  input  wire                   dtcm_enable,
+  output wire                   dtcm_lsu_req,
+  input  wire                   dtcm_lsu_ready,
+  output wire                   dtcm_lsu_we,
+  output wire [13:0]            dtcm_lsu_addr,
+  output wire [63:0]            dtcm_lsu_wdata,
+  output wire [7:0]             dtcm_lsu_wstrb,
+  input  wire                   dtcm_lsu_rvalid,
+  input  wire [63:0]            dtcm_lsu_rdata,
 
   output wire                   accel_req_valid,
   input  wire                   accel_req_ready,
@@ -70,6 +83,11 @@ module edge_rv_lite_cached_core #(
   wire core_dmem_resp_valid;
   wire core_dmem_resp_error;
   wire [63:0] core_dmem_resp_rdata;
+  wire cache_core_req_valid,cache_core_req_ready,cache_core_req_write;
+  wire [63:0] cache_core_req_addr,cache_core_req_wdata;
+  wire [7:0] cache_core_req_wstrb;
+  wire cache_core_resp_valid,cache_core_resp_error;
+  wire [63:0] cache_core_resp_rdata;
 
   wire icache_req_valid;
   wire icache_req_ready;
@@ -140,6 +158,37 @@ module edge_rv_lite_cached_core #(
     .cache_resp_ready(icache_resp_ready), .cache_resp_bits(icache_resp_bits)
   );
 
+  generate if(ENABLE_DTCM_PORT) begin: g_dtcm
+    edge_rv_lite_dtcm_router dtcm_router(
+      .clk(clk),.reset_n(reset_n),.dtcm_base(dtcm_base),.dtcm_mask(dtcm_mask),
+      .dtcm_enable(dtcm_enable),.core_req_valid(core_dmem_req_valid),
+      .core_req_ready(core_dmem_req_ready),.core_req_write(core_dmem_req_write),
+      .core_req_addr(core_dmem_req_addr),.core_req_wdata(core_dmem_req_wdata),
+      .core_req_wstrb(core_dmem_req_wstrb),.core_resp_valid(core_dmem_resp_valid),
+      .core_resp_error(core_dmem_resp_error),.core_resp_rdata(core_dmem_resp_rdata),
+      .cache_req_valid(cache_core_req_valid),.cache_req_ready(cache_core_req_ready),
+      .cache_req_write(cache_core_req_write),.cache_req_addr(cache_core_req_addr),
+      .cache_req_wdata(cache_core_req_wdata),.cache_req_wstrb(cache_core_req_wstrb),
+      .cache_resp_valid(cache_core_resp_valid),.cache_resp_error(cache_core_resp_error),
+      .cache_resp_rdata(cache_core_resp_rdata),.dtcm_req(dtcm_lsu_req),
+      .dtcm_ready(dtcm_lsu_ready),.dtcm_we(dtcm_lsu_we),.dtcm_addr(dtcm_lsu_addr),
+      .dtcm_wdata(dtcm_lsu_wdata),.dtcm_wstrb(dtcm_lsu_wstrb),
+      .dtcm_rvalid(dtcm_lsu_rvalid),.dtcm_rdata(dtcm_lsu_rdata));
+  end else begin: g_no_dtcm
+    assign cache_core_req_valid=core_dmem_req_valid;
+    assign core_dmem_req_ready=cache_core_req_ready;
+    assign cache_core_req_write=core_dmem_req_write;
+    assign cache_core_req_addr=core_dmem_req_addr;
+    assign cache_core_req_wdata=core_dmem_req_wdata;
+    assign cache_core_req_wstrb=core_dmem_req_wstrb;
+    assign core_dmem_resp_valid=cache_core_resp_valid;
+    assign core_dmem_resp_error=cache_core_resp_error;
+    assign core_dmem_resp_rdata=cache_core_resp_rdata;
+    assign dtcm_lsu_req=1'b0; assign dtcm_lsu_we=1'b0;
+    assign dtcm_lsu_addr=14'b0; assign dtcm_lsu_wdata=64'b0;
+    assign dtcm_lsu_wstrb=8'b0;
+  end endgenerate
+
   edge_ifu_icache #(
     .PC_WIDTH(PC_WIDTH), .ICACHE_BYTES(ICACHE_BYTES), .LINE_BYTES(16)
   ) icache (
@@ -162,17 +211,17 @@ module edge_rv_lite_cached_core #(
 
   edge_rv_lite_dcache_adapter dcache_adapter (
     .clk(clk), .reset_n(reset_n),
-    .core_req_valid(core_dmem_req_valid),
-    .core_req_ready(core_dmem_req_ready),
-    .core_req_write(core_dmem_req_write),
-    .core_req_addr(core_dmem_req_addr),
-    .core_req_wdata(core_dmem_req_wdata),
-    .core_req_wstrb(core_dmem_req_wstrb),
+    .core_req_valid(cache_core_req_valid),
+    .core_req_ready(cache_core_req_ready),
+    .core_req_write(cache_core_req_write),
+    .core_req_addr(cache_core_req_addr),
+    .core_req_wdata(cache_core_req_wdata),
+    .core_req_wstrb(cache_core_req_wstrb),
     .core_req_size(core_dmem_req_size),
     .core_req_signed(core_dmem_req_signed),
-    .core_resp_valid(core_dmem_resp_valid),
-    .core_resp_error(core_dmem_resp_error),
-    .core_resp_rdata(core_dmem_resp_rdata),
+    .core_resp_valid(cache_core_resp_valid),
+    .core_resp_error(cache_core_resp_error),
+    .core_resp_rdata(cache_core_resp_rdata),
     .cache_load_req_valid(dcache_load_req_valid),
     .cache_load_req_ready(dcache_load_req_ready),
     .cache_load_req_seq_id(dcache_load_req_seq_id),

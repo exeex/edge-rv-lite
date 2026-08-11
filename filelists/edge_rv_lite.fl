@@ -23,6 +23,7 @@ ${EDGE_RV_LITE_ROOT}/rtl/edge_rv_lite_instruction_assembler.v
 ${EDGE_RV_LITE_ROOT}/rtl/edge_rv_lite_lsu.v
 ${EDGE_RV_LITE_ROOT}/rtl/edge_rv_lite_icache_adapter.v
 ${EDGE_RV_LITE_ROOT}/rtl/edge_rv_lite_dcache_adapter.v
+${EDGE_RV_LITE_ROOT}/rtl/edge_rv_lite_dtcm_router.v
 ${EDGE_RV_ROOT}/edge_ifu_icache/rtl/edge_ifu_icache_data_array.v
 ${EDGE_RV_ROOT}/edge_ifu_icache/rtl/edge_ifu_icache_tag_array.v
 ${EDGE_RV_ROOT}/edge_ifu_icache/edge_ifu_icache.v
