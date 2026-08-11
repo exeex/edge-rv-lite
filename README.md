@@ -5,6 +5,66 @@ It preserves the same 32-bit scalar opcode families and the same 64-bit Edge
 accelerator instruction envelope, but deliberately gives up overlap and
 throughput.
 
+## edge-rv versus edge-rv-lite only
+
+This comparison removes the edge-e3 Tensor, DTCM, DMA, ACTU and CMPU product
+logic. `edge_rv_top` represents the reusable edge-rv layer, including its
+scalar/FPU pipeline, frontend, snapshot/dispatch machinery and I/D caches.
+`edge_rv_lite_cached_core` represents the lite scalar core with the same I/D
+caches.
+
+| Resource | `edge-rv` | `edge-rv-lite` | Lite delta | Lite / RV |
+| --- | ---: | ---: | ---: | ---: |
+| Total cells | 127,943 | 31,473 | -96,470 | 24.6% |
+| LUT1-6 | 76,602 | 14,877 | -61,725 | 19.4% |
+| Flip-flops | 17,937 | 6,560 | -11,377 | 36.6% |
+| CARRY4 | 1,913 | 653 | -1,260 | 34.1% |
+| DSP48E1 | 6 | 4 | -2 | 66.7% |
+| MUXF7 | 10,110 | 2,158 | -7,952 | 21.3% |
+| MUXF8 | 2,843 | 452 | -2,391 | 15.9% |
+| BRAM36 / BRAM18 | 6 / 32 | 6 / 32 | 0 / 0 | 100% / 100% |
+
+Looking only at the reusable RV layer, lite uses **75.4% fewer total cells**,
+**80.6% fewer LUTs**, and **63.4% fewer flip-flops**. The cache BRAM count is
+unchanged.
+
+## CoreMark and Tensor benchmark report
+
+All numbers below are current local Verilator results using the same software
+source on `edge-e3@rv` and `edge-e3@rv-lite`. Internal `rdcycle` is the primary
+metric; whole-harness cycles include boot and setup work.
+
+| Case | Metric | edge-e3@rv | edge-e3@rv-lite | Lite / RV |
+| --- | --- | ---: | ---: | ---: |
+| CoreMark, 2 iterations | cycles/iteration | 409,503 | 785,777 | 1.919x |
+| CoreMark | retired instructions | 616,228 | 616,228 | 1.000x |
+| `tile8x8_stream64tokens` | X30 Tensor window | 534 | 539 | 1.009x |
+| `tile8x8_stream64tokens` | ideal / X30 utilization | 95.88% | 94.99% | -0.89 pp |
+| `matmul64x64_64tokens_tiled_circular` | X30 Tensor window | 4,629 | 4,671 | 1.009x |
+| `matmul64x64_64tokens_tiled_circular` | MAC utilization | 88.49% | 87.69% | -0.80 pp |
+| `matmul64x64_128tokens_tiled_circular` | X30 Tensor window | 8,751 | 8,794 | 1.005x |
+| `matmul64x64_128tokens_tiled_circular` | MAC utilization | 93.61% | 93.15% | -0.46 pp |
+
+The Tensor case performs 512 consecutive 8x8 vector steps with one WLD and one
+Tensor start. Its 4096 BF16 output elements are checked after DTCM-to-AXI DMA.
+The five-cycle lite gap is therefore small: serialized scalar issue hurts
+CoreMark substantially, but it does not materially reduce a long Tensor run
+after launch. This case intentionally isolates the Tensor engine.
+
+The two tiled circular cases use exactly the same C++ source on both cores and
+check every 4096- or 8192-element BF16 output in the testbench. The 64-token
+case includes circular weight DMA/WLD; the 128-token case additionally uses
+packed-XY DMA and transposed circular WLD. Lite is 42 cycles (0.91%) slower in
+the former and 43 cycles (0.49%) slower in the latter. The nearly fixed gap
+shows that serialized scalar command issue adds setup cost but does not reduce
+steady Tensor throughput.
+
+The unchanged standard `bf16_wld_direct_circular.cpp` program is also a lite
+regression. It covers cache clean-by-VA, direct DMA, direct and transposed WLD,
+XY-strided circular DMA, circular WLD, scalar DTCM result checks, DMA sync, and
+the Edge break CSR. A successful return proves that these paths use the same
+shared implementation rather than a reduced lite substitute.
+
 ## Microarchitecture
 
 The core is single issue and has three architectural stages:
@@ -106,66 +166,54 @@ The lite DTCM router also normalizes raw bank reads to the same size/sign
 formatted response used by D-cache. This is required for standard accelerator
 tests that validate BF16 or byte results through scalar loads.
 
-## CoreMark and Tensor benchmark report
+## Choosing between edge-rv and edge-rv-lite
 
-All numbers below are current local Verilator results using the same software
-source on `edge-e3@rv` and `edge-e3@rv-lite`. Internal `rdcycle` is the primary
-metric; whole-harness cycles include boot and setup work.
+The main question is not only how much scalar performance is required. It is
+whether the workload needs to construct and queue many fine-grained ASIC
+instructions dynamically.
 
-| Case | Metric | edge-e3@rv | edge-e3@rv-lite | Lite / RV |
-| --- | --- | ---: | ---: | ---: |
-| CoreMark, 2 iterations | cycles/iteration | 409,503 | 785,777 | 1.919x |
-| CoreMark | retired instructions | 616,228 | 616,228 | 1.000x |
-| `tile8x8_stream64tokens` | X30 Tensor window | 534 | 539 | 1.009x |
-| `tile8x8_stream64tokens` | ideal / X30 utilization | 95.88% | 94.99% | -0.89 pp |
-| `matmul64x64_64tokens_tiled_circular` | X30 Tensor window | 4,629 | 4,671 | 1.009x |
-| `matmul64x64_64tokens_tiled_circular` | MAC utilization | 88.49% | 87.69% | -0.80 pp |
-| `matmul64x64_128tokens_tiled_circular` | X30 Tensor window | 8,751 | 8,794 | 1.005x |
-| `matmul64x64_128tokens_tiled_circular` | MAC utilization | 93.61% | 93.15% | -0.46 pp |
+### Choose edge-rv dual issue for dynamic command generation
 
-The Tensor case performs 512 consecutive 8x8 vector steps with one WLD and one
-Tensor start. Its 4096 BF16 output elements are checked after DTCM-to-AXI DMA.
-The five-cycle lite gap is therefore small: serialized scalar issue hurts
-CoreMark substantially, but it does not materially reduce a long Tensor run
-after launch. This case intentionally isolates the Tensor engine.
+`edge-rv` is the better fit when the accelerator instruction stream has many
+stages and benefits from the snapshot mechanism. Software can prepare the next
+instruction's operands in advance, snapshot them into the command queue, and
+then issue that ASIC instruction without waiting for its parameters to be
+reconstructed at dispatch time.
 
-The two tiled circular cases use exactly the same C++ source on both cores and
-check every 4096- or 8192-element BF16 output in the testbench. The 64-token
-case includes circular weight DMA/WLD; the 128-token case additionally uses
-packed-XY DMA and transposed circular WLD. Lite is 42 cycles (0.91%) slower in
-the former and 43 cycles (0.49%) slower in the latter. The nearly fixed gap
-shows that serialized scalar command issue adds setup cost but does not reduce
-steady Tensor throughput.
+In this role, the RISC-V dual-issue pipeline acts like a small JIT compiler: it
+runs a real loop, calculates the next command and dynamically produces the ASIC
+instruction queue. This avoids statically expanding the loop into tens of
+thousands of ASIC instructions, which would consume I-cache capacity and make
+instruction fetch compete with data traffic.
 
-The unchanged standard `bf16_wld_direct_circular.cpp` program is also a lite
-regression. It covers cache clean-by-VA, direct DMA, direct and transposed WLD,
-XY-strided circular DMA, circular WLD, scalar DTCM result checks, DMA sync, and
-the Edge break CSR. A successful return proves that these paths use the same
-shared implementation rather than a reduced lite substitute.
+This does not mean that every optimized kernel needs a large I-cache. In the
+author's experience, a well-written attention kernel is around 8 KiB, so its
+hot path can fit entirely in I-cache and run at a 100% I-cache hit rate. The
+important distinction is whether the compact loop must dynamically generate
+addresses, shapes or commands.
 
-## Shared-layer Yosys guard
+Dual issue is recommended when the workload needs capabilities such as:
 
-The standard `edge-e3@rv` top was synthesized with the Xilinx flow immediately
-before and after extracting `edge_accel_data_ctrl`. Tensor and DTCM attribution
-are bit-for-bit unchanged; the small LUT/mux differences are packing changes
-in the remaining `Other` bucket.
+1. Calculating sparse addresses for MoE routing or gathers.
+2. Handling a growing token count or another dynamic shape. A fixed 64- or
+   128-token kernel fitted to a vLLM page can avoid this requirement, but a
+   general dynamic-shape implementation cannot.
+3. Preparing and queueing many dependent ASIC commands while earlier commands
+   are still running.
 
-| Resource | Before | After | Delta |
-| --- | ---: | ---: | ---: |
-| Total cells | 283,884 | 283,882 | -2 |
-| LUT1-6 | 169,760 | 169,752 | -8 |
-| Flip-flops | 43,301 | 43,301 | 0 |
-| CARRY4 | 8,425 | 8,425 | 0 |
-| DSP48E1 | 101 | 101 | 0 |
-| BRAM36 / BRAM18 | 38 / 32 | 38 / 32 | 0 / 0 |
-| Tensor cells | 105,956 | 105,956 | 0 |
-| DTCM cells, excluding Tensor | 40,711 | 40,711 | 0 |
+### Choose edge-rv-lite for static, coarse-grained acceleration
 
-The extracted controller itself remains visible as 2,541 synthesized cells,
-including the existing 1,203-cell strided controller, so the matching totals
-are not caused by accidentally optimizing the functionality away.
+`edge-rv-lite` is a better fit when the execution flow is mostly static, the
+ASIC is highly integrated, and circular DMA is already used effectively to
+buffer DRAM traffic. It works especially well when one accelerator instruction
+does a large amount of work—for example, launching an entire 512x512 matrix
+multiplication—because scalar command-generation overhead is then negligible.
 
-## Full-top Yosys comparison
+The tradeoff is therefore straightforward: use dual issue when RISC-V must
+dynamically build a fine-grained accelerator schedule; use lite when RISC-V
+mostly configures and launches a small number of coarse-grained operations.
+
+## Overall product area comparison
 
 Both product tops were synthesized from the same revision with Yosys
 `synth_xilinx -family xc7 -noiopad -noclkbuf`. `edge_core_top` uses the normal
@@ -185,22 +233,9 @@ wrappers.
 | MUXF8 | 5,113 | 2,847 | -2,266 | 55.7% |
 | BRAM36 / BRAM18 | 38 / 32 | 38 / 32 | 0 / 0 | 100% / 100% |
 
-The hierarchy attribution confirms where the reduction comes from:
-
-| Bucket | `edge-e3@rv` cells | `edge-e3@rv-lite` cells | Lite delta | Lite share |
-| --- | ---: | ---: | ---: | ---: |
-| Tensor | 105,956 | 106,052 | +96 | 57.2% |
-| DTCM/DMA, excluding Tensor | 40,711 | 40,987 | +276 | 22.1% |
-| Other | 137,215 | 38,321 | -98,894 | 20.7% |
-| Total | 283,882 | 185,360 | -98,522 | 100.0% |
-
-The small Tensor and DTCM bucket differences are top-context LUT/mux mapping
-changes: Tensor keeps the same 72 DSP48E1 and 16,634 flip-flops, DTCM keeps the
-same 19 DSP48E1, 6,665 flip-flops, and 32 RAMB36E1. The large reduction is in
-`Other`, as expected from removing the normal scalar snapshot, queue, FPU, and
-dual-issue machinery. The lite top is therefore 34.7% smaller in total Yosys
-cells while preserving the accelerator and memory capacity used by the Tensor
-benchmarks above.
+Replacing `edge-rv` with `edge-rv-lite` reduces the complete product by 98,522
+Yosys cells, or **34.7%**. LUT usage falls by **37.4%** and flip-flop usage by
+**27.3%**, while BRAM capacity is unchanged.
 
 Reproduce the comparison with:
 
@@ -211,6 +246,13 @@ STAREDGE_YOSYS_VARIANT=xilinx-top-compare-20260811 \
 STAREDGE_YOSYS_VARIANT=xilinx-top-compare-20260811 \
   ./synth/run_yosys.sh edge_core_lite_top xilinx \
   synth/filelists/edge_lite_top.fl
+
+STAREDGE_YOSYS_VARIANT=xilinx-clean \
+  ./synth/run_yosys.sh edge_rv_top xilinx \
+  synth/filelists/edge_rv.fl
+STAREDGE_YOSYS_VARIANT=xilinx-lite-cached \
+  ./synth/run_yosys.sh edge_rv_lite_cached_core xilinx \
+  src/edge-rv-lite/filelists/edge_rv_lite.fl
 ```
 
 These are FPGA-oriented Yosys estimates, not Vivado placement/routing or ASIC
