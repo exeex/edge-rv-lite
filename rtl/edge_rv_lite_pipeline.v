@@ -11,12 +11,14 @@ module edge_rv_lite_pipeline #(
   input  wire                   fetch_valid,
   output wire                   fetch_ready,
   input  wire [PC_WIDTH-1:0]    fetch_pc,
-  input  wire [31:0]            fetch_inst,
+  input  wire [63:0]            fetch_inst,
+  input  wire                   fetch_is_64b,
   input  wire                   fetch_error,
 
   output wire                   id_valid,
   output wire [PC_WIDTH-1:0]    id_pc,
-  output wire [31:0]            id_inst,
+  output wire [63:0]            id_inst,
+  output wire                   id_is_64b,
   output wire                   id_error,
   input  wire [4:0]             id_rs1,
   input  wire [4:0]             id_rs2,
@@ -25,7 +27,8 @@ module edge_rv_lite_pipeline #(
 
   output wire                   ex_valid,
   output wire [PC_WIDTH-1:0]    ex_pc,
-  output wire [31:0]            ex_inst,
+  output wire [63:0]            ex_inst,
+  output wire                   ex_is_64b,
   output wire                   ex_error,
   output wire [VALUE_WIDTH-1:0] ex_rs1_value,
   output wire [VALUE_WIDTH-1:0] ex_rs2_value,
@@ -37,11 +40,13 @@ module edge_rv_lite_pipeline #(
 );
   reg id_valid_q;
   reg [PC_WIDTH-1:0] id_pc_q;
-  reg [31:0] id_inst_q;
+  reg [63:0] id_inst_q;
+  reg id_is_64b_q;
   reg id_error_q;
   reg ex_valid_q;
   reg [PC_WIDTH-1:0] ex_pc_q;
-  reg [31:0] ex_inst_q;
+  reg [63:0] ex_inst_q;
+  reg ex_is_64b_q;
   reg ex_error_q;
   reg [VALUE_WIDTH-1:0] ex_rs1_q;
   reg [VALUE_WIDTH-1:0] ex_rs2_q;
@@ -57,10 +62,12 @@ module edge_rv_lite_pipeline #(
   assign id_valid = id_valid_q;
   assign id_pc = id_pc_q;
   assign id_inst = id_inst_q;
+  assign id_is_64b = id_is_64b_q;
   assign id_error = id_error_q;
   assign ex_valid = ex_valid_q;
   assign ex_pc = ex_pc_q;
   assign ex_inst = ex_inst_q;
+  assign ex_is_64b = ex_is_64b_q;
   assign ex_error = ex_error_q;
   assign ex_rs1_value = ex_rs1_q;
   assign ex_rs2_value = ex_rs2_q;
@@ -71,8 +78,10 @@ module edge_rv_lite_pipeline #(
       ex_valid_q <= 1'b0;
       id_pc_q <= {PC_WIDTH{1'b0}};
       ex_pc_q <= {PC_WIDTH{1'b0}};
-      id_inst_q <= 32'h0000_0013;
-      ex_inst_q <= 32'h0000_0013;
+      id_inst_q <= 64'h0000_0000_0000_0013;
+      ex_inst_q <= 64'h0000_0000_0000_0013;
+      id_is_64b_q <= 1'b0;
+      ex_is_64b_q <= 1'b0;
       id_error_q <= 1'b0;
       ex_error_q <= 1'b0;
       ex_rs1_q <= {VALUE_WIDTH{1'b0}};
@@ -85,6 +94,7 @@ module edge_rv_lite_pipeline #(
       ex_valid_q <= id_valid_q;
       ex_pc_q <= id_pc_q;
       ex_inst_q <= id_inst_q;
+      ex_is_64b_q <= id_is_64b_q;
       ex_error_q <= id_error_q;
       ex_rs1_q <= forward_rs1 ? ex_write_value : id_rs1_raw;
       ex_rs2_q <= forward_rs2 ? ex_write_value : id_rs2_raw;
@@ -92,9 +102,9 @@ module edge_rv_lite_pipeline #(
       if (fetch_valid && fetch_ready) begin
         id_pc_q <= fetch_pc;
         id_inst_q <= fetch_inst;
+        id_is_64b_q <= fetch_is_64b;
         id_error_q <= fetch_error;
       end
     end
   end
 endmodule
-

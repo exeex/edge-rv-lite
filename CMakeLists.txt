@@ -35,6 +35,20 @@ add_test(NAME edge_rv_lite_frontend_redirect
   COMMAND ${CMAKE_CURRENT_BINARY_DIR}/redirect_obj/Vedge_rv_lite_frontend_redirect_tb)
 
 add_custom_command(
+  OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/assembler_obj/Vedge_rv_lite_instruction_assembler_tb
+  COMMAND ${VERILATOR} --binary --timing
+          --top-module edge_rv_lite_instruction_assembler_tb
+          --Mdir ${CMAKE_CURRENT_BINARY_DIR}/assembler_obj
+          ${CMAKE_CURRENT_LIST_DIR}/rtl/edge_rv_lite_instruction_assembler.v
+          ${CMAKE_CURRENT_LIST_DIR}/tests/edge_rv_lite_instruction_assembler_tb.v
+  DEPENDS ${CMAKE_CURRENT_LIST_DIR}/rtl/edge_rv_lite_instruction_assembler.v
+          ${CMAKE_CURRENT_LIST_DIR}/tests/edge_rv_lite_instruction_assembler_tb.v)
+add_custom_target(edge_rv_lite_instruction_assembler_vvp ALL
+  DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/assembler_obj/Vedge_rv_lite_instruction_assembler_tb)
+add_test(NAME edge_rv_lite_instruction_assembler
+  COMMAND ${CMAKE_CURRENT_BINARY_DIR}/assembler_obj/Vedge_rv_lite_instruction_assembler_tb)
+
+add_custom_command(
   OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/lsu_obj/Vedge_rv_lite_lsu_tb
   COMMAND ${VERILATOR} --binary --timing --top-module edge_rv_lite_lsu_tb
           --Mdir ${CMAKE_CURRENT_BINARY_DIR}/lsu_obj
@@ -53,12 +67,15 @@ set(EDGE_COREMARK_MEM64
     "${CMAKE_CURRENT_LIST_DIR}/../../build/cmake-harness/tests/hardware/EDGE_SOC/software/coremark_bench/coremark_bench.data64.memh"
     CACHE FILEPATH "CoreMark RV64 memory image built by the edge-e3 harness")
 set(CORE_RTL
+  ${EDGE_RV_ROOT}/edge_instruction_classifier/edge_instruction_classifier.v
+  ${CMAKE_CURRENT_LIST_DIR}/rtl/edge_rv_lite_decode.v
   ${EDGE_RV_ROOT}/edge_scalar_fast_alu/edge_scalar_fast_alu.v
   ${EDGE_RV_ROOT}/edge_scalar_branch/edge_scalar_branch.v
   ${EDGE_RV_ROOT}/edge_scalar_divrem/edge_scalar_divrem.v
   ${EDGE_RV_ROOT}/edge_scalar_muldiv/edge_scalar_muldiv.v
   ${EDGE_RV_ROOT}/edge_scalar_muldiv/edge_scalar_muldiv_leaf.v
   ${CMAKE_CURRENT_LIST_DIR}/rtl/edge_rv_lite_frontend.v
+  ${CMAKE_CURRENT_LIST_DIR}/rtl/edge_rv_lite_instruction_assembler.v
   ${CMAKE_CURRENT_LIST_DIR}/rtl/edge_rv_lite_pipeline.v
   ${CMAKE_CURRENT_LIST_DIR}/rtl/edge_rv_lite_lsu.v
   ${CMAKE_CURRENT_LIST_DIR}/rtl/edge_rv_lite_core.v)
@@ -77,6 +94,20 @@ add_test(NAME edge_rv_lite_coremark
           +mem64=${EDGE_COREMARK_MEM64})
 set_tests_properties(edge_rv_lite_coremark PROPERTIES
   REQUIRED_FILES "${EDGE_COREMARK_MEM64}" TIMEOUT 30)
+
+add_custom_command(
+  OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/accel_serial_obj/Vedge_rv_lite_accel_serial_tb
+  COMMAND ${VERILATOR} --binary --timing -Wno-fatal
+          --top-module edge_rv_lite_accel_serial_tb
+          --Mdir ${CMAKE_CURRENT_BINARY_DIR}/accel_serial_obj
+          ${CORE_RTL} ${CMAKE_CURRENT_LIST_DIR}/tests/edge_rv_lite_accel_serial_tb.v
+  DEPENDS ${CORE_RTL}
+          ${CMAKE_CURRENT_LIST_DIR}/tests/edge_rv_lite_accel_serial_tb.v)
+add_custom_target(edge_rv_lite_accel_serial_vvp ALL
+  DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/accel_serial_obj/Vedge_rv_lite_accel_serial_tb)
+add_test(NAME edge_rv_lite_accel_serial
+  COMMAND ${CMAKE_CURRENT_BINARY_DIR}/accel_serial_obj/Vedge_rv_lite_accel_serial_tb)
+set_tests_properties(edge_rv_lite_accel_serial PROPERTIES TIMEOUT 30)
 
 set(CACHED_CORE_RTL
   ${CORE_RTL}

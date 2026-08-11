@@ -75,9 +75,10 @@ instructions, matching edge-rv instruction-for-instruction, and returns a
 measured CoreMark interval of 724,712 cycles before the crt0 `ebreak`.
 
 The current bootable core covers RV64IM_Zba, `rdcycle`, `rdinstret`, and the
-crt0 `ebreak`. The Edge predecoder describes the eventual ASIC routing surface;
-connecting that routing and the cache/BIU-compatible product wrapper is the
-next integration slice, not part of the standalone CoreMark test yet.
+crt0 `ebreak`. Ordered 32-bit fetch parcels are now assembled into complete
+Edge64 instructions and held in EX across a serialized accelerator request and
+response. Connecting that generic one-owner boundary to the product Tensor,
+ACTU, CMPU, DMA and DTCM command ports is the next integration slice.
 
 The integration boundary is intentionally split into a shared platform and a
 replaceable scalar cluster. The platform owns I/D cache, BIU, DTCM, DMA and the

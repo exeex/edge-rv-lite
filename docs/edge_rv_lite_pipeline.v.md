@@ -10,3 +10,13 @@ advance on the same edge. A redirect from EX clears ID and the current EX valid
 after the branch completes; the frontend independently restarts target fetch.
 There are no sequence IDs, epochs, RTU records, completion ports, or snapshots.
 
+The pipeline carries a complete 64-bit instruction plus an explicit
+`is_64b` bit. Scalar instructions keep their upper word zero. The separate
+`edge_rv_lite_instruction_assembler` consumes ordered 32-bit frontend parcels;
+an opcode `7'h3f` low parcel captures the following parcel and emits one Edge64
+instruction at the low parcel's PC. Redirect flush discards an incomplete pair.
+
+An Edge64 instruction remains the sole EX owner until the serialized
+accelerator request is accepted and its matching response arrives. This is a
+single-owner handshake, not a command queue: no younger scalar or accelerator
+instruction can execute while the command is outstanding.

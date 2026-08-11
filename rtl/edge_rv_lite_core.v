@@ -15,6 +15,11 @@ module edge_rv_lite_core #(
   output wire [1:0] dmem_req_size, output wire dmem_req_signed,
   input wire dmem_resp_valid, input wire dmem_resp_error,
   input wire [63:0] dmem_resp_rdata,
+  output wire accel_req_valid, input wire accel_req_ready,
+  output wire [63:0] accel_req_inst,
+  output wire [63:0] accel_req_src0, output wire [63:0] accel_req_src1,
+  input wire accel_resp_valid, input wire accel_resp_error,
+  input wire [63:0] accel_resp_value,
   output reg halted, output reg illegal,
   output wire [63:0] debug_x31, output wire [63:0] cycle_count,
   output wire [63:0] instret_count
@@ -24,13 +29,17 @@ module edge_rv_lite_core #(
     A_ZBA=9, A_ZBA_UW=10;
   reg [63:0] gpr [0:31];
   reg [63:0] cycle_q, instret_q;
-  reg mem_started_q, mul_started_q;
+  reg mem_started_q, mul_started_q, accel_started_q;
   integer ri;
 
-  wire if_valid, if_ready, if_error;
-  wire [PC_WIDTH-1:0] if_pc; wire [31:0] if_inst;
-  wire id_valid, id_error; wire [PC_WIDTH-1:0] id_pc; wire [31:0] id_inst;
-  wire ex_valid, ex_error; wire [PC_WIDTH-1:0] ex_pc; wire [31:0] ex_inst;
+  wire parcel_valid, parcel_ready, parcel_error;
+  wire [PC_WIDTH-1:0] parcel_pc; wire [31:0] parcel_inst;
+  wire if_valid, if_ready, if_error, if_is_64b;
+  wire [PC_WIDTH-1:0] if_pc; wire [63:0] if_inst;
+  wire id_valid, id_error, id_is_64b;
+  wire [PC_WIDTH-1:0] id_pc; wire [63:0] id_inst;
+  wire ex_valid, ex_error, ex_is_64b;
+  wire [PC_WIDTH-1:0] ex_pc; wire [63:0] ex_inst;
   wire [63:0] ex_rs1_value, ex_rs2_value;
   wire [4:0] id_rs1=id_inst[19:15], id_rs2=id_inst[24:20];
   wire [63:0] id_rs1_raw=id_rs1==0 ? 0 : gpr[id_rs1];
@@ -54,7 +63,7 @@ module edge_rv_lite_core #(
     (ex_inst[19:15]==0);
   wire is_instret=(opc==7'h73)&&(f3==3'b010)&&(ex_inst[31:20]==12'hc02)&&
     (ex_inst[19:15]==0);
-  wire is_ebreak=ex_inst==32'h0010_0073;
+  wire is_ebreak=ex_inst==64'h0000_0000_0010_0073;
   wire legal_branch=(f3==0)||(f3==1)||(f3>=4);
   wire legal_load=f3!=7;
   wire legal_store=f3<=3;
@@ -72,7 +81,16 @@ module edge_rv_lite_core #(
     is_lui||is_auipc||is_jal||is_jalr||(is_branch&&legal_branch);
   wire legal_mem=(is_load&&legal_load)||(is_store&&legal_store);
   wire legal_sys=is_cycle||is_instret||is_ebreak;
-  wire ex_legal=legal_fast||legal_mem||legal_sys;
+  wire [3:0] decoded_class;
+  wire decoded_legal, decoded_writes_gpr;
+  wire [6:0] decoded_accel_subop;
+  edge_rv_lite_decode decode(
+    .inst(ex_inst), .inst_is_64b(ex_is_64b), .op_class(decoded_class),
+    .legal(decoded_legal), .rd(), .rs1(), .rs2(),
+    .writes_gpr(decoded_writes_gpr), .accel_subop(decoded_accel_subop));
+  wire is_accel=ex_is_64b&&(decoded_class==4'd8);
+  wire ex_legal=is_accel ? decoded_legal :
+                (!ex_is_64b&&(legal_fast||legal_mem||legal_sys));
 
   wire [11:0] i12=ex_inst[31:20];
   wire [11:0] s12={ex_inst[31:25],ex_inst[11:7]};
@@ -128,28 +146,44 @@ module edge_rv_lite_core #(
     .mem_resp_error(dmem_resp_error),.mem_resp_rdata(dmem_resp_rdata),
     .op_done(lsu_done),.op_error(lsu_error),.op_load_value(lsu_value),.busy(lsu_busy));
 
-  wire fast_done=ex_valid&&legal_fast&&!is_muldiv;
-  wire sys_done=ex_valid&&legal_sys;
+  assign accel_req_valid=ex_valid&&is_accel&&!accel_started_q;
+  assign accel_req_inst=ex_inst;
+  assign accel_req_src0=ex_rs1_value;
+  assign accel_req_src1=ex_rs2_value;
+  wire accel_req_fire=accel_req_valid&&accel_req_ready;
+  wire accel_done=is_accel&&accel_started_q&&accel_resp_valid;
+  wire fast_done=ex_valid&&!ex_is_64b&&legal_fast&&!is_muldiv;
+  wire sys_done=ex_valid&&!ex_is_64b&&legal_sys;
   wire ex_done=fast_done||sys_done||(is_muldiv&&mul_result_valid)||
-    (legal_mem&&lsu_done)||(ex_valid&&!ex_legal);
+    (legal_mem&&lsu_done)||accel_done||(ex_valid&&!ex_legal);
   wire ex_control=is_jal||is_jalr||is_branch;
   wire redirect=fast_done&&ex_control&&branch_taken;
-  wire [63:0] wb_value=is_muldiv?mul_result:is_load?lsu_value:
+  wire [63:0] wb_value=is_accel?accel_resp_value:is_muldiv?mul_result:is_load?lsu_value:
     is_cycle?cycle_q:is_instret?instret_q:fast_result;
-  wire wb_valid=ex_done&&(rd!=0)&&!is_store&&!is_branch&&!is_ebreak&&ex_legal;
+  wire wb_valid=ex_done&&(rd!=0)&&!is_store&&!is_branch&&!is_ebreak&&ex_legal&&
+                (!is_accel||decoded_writes_gpr);
 
   edge_rv_lite_frontend frontend(.clk(clk),.reset_n(reset_n),
     .imem_req_valid(imem_req_valid),.imem_req_ready(imem_req_ready),
     .imem_req_addr(imem_req_addr),.imem_resp_valid(imem_resp_valid),
     .imem_resp_data(imem_resp_data),.imem_resp_error(imem_resp_error),
-    .op_valid(if_valid),.op_ready(if_ready),.op_pc(if_pc),.op_inst(if_inst),
-    .op_error(if_error),.redirect_valid(redirect),.redirect_pc(branch_target));
+    .op_valid(parcel_valid),.op_ready(parcel_ready),.op_pc(parcel_pc),
+    .op_inst(parcel_inst), .op_error(parcel_error),
+    .redirect_valid(redirect),.redirect_pc(branch_target));
+  edge_rv_lite_instruction_assembler assembler(
+    .clk(clk), .reset_n(reset_n), .parcel_valid(parcel_valid),
+    .parcel_ready(parcel_ready), .parcel_pc(parcel_pc),
+    .parcel_data(parcel_inst), .parcel_error(parcel_error),
+    .op_valid(if_valid), .op_ready(if_ready), .op_pc(if_pc),
+    .op_inst(if_inst), .op_is_64b(if_is_64b), .op_error(if_error),
+    .flush(redirect));
   edge_rv_lite_pipeline pipeline(.clk(clk),.reset_n(reset_n),
     .fetch_valid(if_valid),.fetch_ready(if_ready),.fetch_pc(if_pc),
-    .fetch_inst(if_inst),.fetch_error(if_error),.id_valid(id_valid),.id_pc(id_pc),
-    .id_inst(id_inst),.id_error(id_error),.id_rs1(id_rs1),.id_rs2(id_rs2),
+    .fetch_inst(if_inst),.fetch_is_64b(if_is_64b),.fetch_error(if_error),
+    .id_valid(id_valid),.id_pc(id_pc), .id_inst(id_inst),
+    .id_is_64b(id_is_64b),.id_error(id_error),.id_rs1(id_rs1),.id_rs2(id_rs2),
     .id_rs1_raw(id_rs1_raw),.id_rs2_raw(id_rs2_raw),.ex_valid(ex_valid),
-    .ex_pc(ex_pc),.ex_inst(ex_inst),.ex_error(ex_error),
+    .ex_pc(ex_pc),.ex_inst(ex_inst),.ex_is_64b(ex_is_64b),.ex_error(ex_error),
     .ex_rs1_value(ex_rs1_value),.ex_rs2_value(ex_rs2_value),.ex_done(ex_done),
     .ex_write_valid(wb_valid),.ex_write_rd(rd),.ex_write_value(wb_value),
     .ex_redirect_valid(redirect));
@@ -159,17 +193,20 @@ module edge_rv_lite_core #(
     if(!reset_n) begin
       for(ri=0;ri<32;ri=ri+1) gpr[ri]<=0;
       cycle_q<=0; instret_q<=0; mem_started_q<=0; mul_started_q<=0;
+      accel_started_q<=0;
       halted<=0; illegal<=0;
     end else begin
       cycle_q<=cycle_q+1; gpr[0]<=0;
       if(lsu_start&&lsu_ready) mem_started_q<=1;
       if(mul_start&&mul_ready) mul_started_q<=1;
+      if(accel_req_fire) accel_started_q<=1;
       if(ex_done) begin
-        mem_started_q<=0; mul_started_q<=0;
+        mem_started_q<=0; mul_started_q<=0; accel_started_q<=0;
         if(ex_valid) instret_q<=instret_q+1;
         if(wb_valid) gpr[rd]<=wb_value;
         if(is_ebreak) halted<=1;
-        if(!ex_legal||ex_error||(legal_mem&&lsu_error)) begin illegal<=1; halted<=1; end
+        if(!ex_legal||ex_error||(legal_mem&&lsu_error)||
+           (is_accel&&accel_resp_error)) begin illegal<=1; halted<=1; end
       end
     end
   end

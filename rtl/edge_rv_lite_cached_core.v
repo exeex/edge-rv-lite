@@ -34,6 +34,15 @@ module edge_rv_lite_cached_core #(
   output wire                   dmem_clean_wb_last,
   input  wire                   dmem_clean_wb_complete,
 
+  output wire                   accel_req_valid,
+  input  wire                   accel_req_ready,
+  output wire [63:0]            accel_req_inst,
+  output wire [63:0]            accel_req_src0,
+  output wire [63:0]            accel_req_src1,
+  input  wire                   accel_resp_valid,
+  input  wire                   accel_resp_error,
+  input  wire [63:0]            accel_resp_value,
+
   output wire                   halted,
   output wire                   illegal,
   output wire [63:0]            debug_x31,
@@ -109,6 +118,10 @@ module edge_rv_lite_cached_core #(
     .dmem_resp_valid(core_dmem_resp_valid),
     .dmem_resp_error(core_dmem_resp_error),
     .dmem_resp_rdata(core_dmem_resp_rdata),
+    .accel_req_valid(accel_req_valid), .accel_req_ready(accel_req_ready),
+    .accel_req_inst(accel_req_inst), .accel_req_src0(accel_req_src0),
+    .accel_req_src1(accel_req_src1), .accel_resp_valid(accel_resp_valid),
+    .accel_resp_error(accel_resp_error), .accel_resp_value(accel_resp_value),
     .halted(halted), .illegal(illegal), .debug_x31(debug_x31),
     .cycle_count(cycle_count), .instret_count(instret_count)
   );

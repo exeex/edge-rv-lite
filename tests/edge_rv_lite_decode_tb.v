@@ -6,6 +6,7 @@ module edge_rv_lite_decode_tb;
   wire [3:0] op_class;
   wire legal;
   wire [4:0] rd, rs1, rs2;
+  wire writes_gpr;
   wire [6:0] accel_subop;
 
   edge_rv_lite_decode dut (.*);
