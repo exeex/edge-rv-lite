@@ -1,5 +1,8 @@
 # edge_rv_lite_axi_core.v
 
+`DTCM_ADDR_WIDTH` parameterizes the scalar DTCM word-address port. It defaults
+to 14 for the 128 KiB e3 configuration and is 15 for the 256 KiB e4 setup.
+
 This integration wrapper composes `edge_rv_lite_cached_core` and
 `edge_rv_lite_cache_biu`. Its AXI port names, widths, IDs, burst lengths and
 cache attributes match the `biu_pad_*`/`pad_biu_*` boundary of the maintained

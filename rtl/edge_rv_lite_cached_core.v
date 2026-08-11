@@ -7,6 +7,7 @@ module edge_rv_lite_cached_core #(
   parameter PC_WIDTH = 40,
   parameter ICACHE_BYTES = 16384,
   parameter DCACHE_BYTES = 16384,
+  parameter DTCM_ADDR_WIDTH = 14,
   parameter ENABLE_DTCM_PORT = 0
 ) (
   input  wire                   clk,
@@ -41,7 +42,7 @@ module edge_rv_lite_cached_core #(
   output wire                   dtcm_lsu_req,
   input  wire                   dtcm_lsu_ready,
   output wire                   dtcm_lsu_we,
-  output wire [13:0]            dtcm_lsu_addr,
+  output wire [DTCM_ADDR_WIDTH-1:0] dtcm_lsu_addr,
   output wire [63:0]            dtcm_lsu_wdata,
   output wire [7:0]             dtcm_lsu_wstrb,
   input  wire                   dtcm_lsu_rvalid,
@@ -167,7 +168,7 @@ module edge_rv_lite_cached_core #(
   );
 
   generate if(ENABLE_DTCM_PORT) begin: g_dtcm
-    edge_rv_lite_dtcm_router dtcm_router(
+    edge_rv_lite_dtcm_router #(.DTCM_ADDR_WIDTH(DTCM_ADDR_WIDTH)) dtcm_router(
       .clk(clk),.reset_n(reset_n),.dtcm_base(dtcm_base),.dtcm_mask(dtcm_mask),
       .dtcm_enable(dtcm_enable),.core_req_valid(core_dmem_req_valid),
       .core_req_ready(core_dmem_req_ready),.core_req_write(core_dmem_req_write),
@@ -194,7 +195,8 @@ module edge_rv_lite_cached_core #(
     assign core_dmem_resp_error=cache_core_resp_error;
     assign core_dmem_resp_rdata=cache_core_resp_rdata;
     assign dtcm_lsu_req=1'b0; assign dtcm_lsu_we=1'b0;
-    assign dtcm_lsu_addr=14'b0; assign dtcm_lsu_wdata=64'b0;
+    assign dtcm_lsu_addr={DTCM_ADDR_WIDTH{1'b0}};
+    assign dtcm_lsu_wdata=64'b0;
     assign dtcm_lsu_wstrb=8'b0;
   end endgenerate
 

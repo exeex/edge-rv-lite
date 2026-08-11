@@ -8,6 +8,7 @@ module edge_rv_lite_axi_core #(
   parameter AXI_LEN_WIDTH = 8,
   parameter ICACHE_BYTES = 16384,
   parameter DCACHE_BYTES = 16384,
+  parameter DTCM_ADDR_WIDTH = 14,
   parameter ENABLE_DTCM_PORT = 0
 ) (
   input  wire                         forever_cpuclk,
@@ -56,7 +57,7 @@ module edge_rv_lite_axi_core #(
   output wire                         dtcm_lsu_req,
   input  wire                         dtcm_lsu_ready,
   output wire                         dtcm_lsu_we,
-  output wire [13:0]                  dtcm_lsu_addr,
+  output wire [DTCM_ADDR_WIDTH-1:0]   dtcm_lsu_addr,
   output wire [63:0]                  dtcm_lsu_wdata,
   output wire [7:0]                   dtcm_lsu_wstrb,
   input  wire                         dtcm_lsu_rvalid,
@@ -100,7 +101,8 @@ module edge_rv_lite_axi_core #(
 
   edge_rv_lite_cached_core #(
     .PC_WIDTH(PC_WIDTH), .ICACHE_BYTES(ICACHE_BYTES),
-    .DCACHE_BYTES(DCACHE_BYTES),.ENABLE_DTCM_PORT(ENABLE_DTCM_PORT)
+    .DCACHE_BYTES(DCACHE_BYTES),.DTCM_ADDR_WIDTH(DTCM_ADDR_WIDTH),
+    .ENABLE_DTCM_PORT(ENABLE_DTCM_PORT)
   ) cached_core (
     .clk(forever_cpuclk), .reset_n(cpurst_b),
     .imem_refill_req_valid(imem_refill_req_valid),
