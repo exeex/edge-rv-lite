@@ -74,11 +74,13 @@ by the parent edge-e3 harness. The first bootable result retires 616,228
 instructions, matching edge-rv instruction-for-instruction, and returns a
 measured CoreMark interval of 724,712 cycles before the crt0 `ebreak`.
 
-The current bootable core covers RV64IM_Zba, `rdcycle`, `rdinstret`, and the
-crt0 `ebreak`. Ordered 32-bit fetch parcels are now assembled into complete
-Edge64 instructions and held in EX across a serialized accelerator request and
-response. The product-side single-owner leaf now connects this boundary to the
-shared accelerator dispatch without snapshots, sequence IDs or epochs.
+The current bootable core covers RV64IM_Zba, `rdcycle`, `rdinstret`, the crt0
+`ebreak`, the Edge break CSR, and the standard D-cache clean/invalidate
+instructions used around DMA. Ordered 32-bit fetch parcels are assembled into
+complete Edge64 instructions and held in EX across a serialized accelerator
+request and response. The product-side single-owner leaf connects this
+boundary to the shared accelerator dispatch without snapshots, sequence IDs
+or epochs.
 
 The integration boundary is intentionally split into a shared platform and a
 replaceable scalar cluster. The platform owns I/D cache, BIU, DTCM, DMA and the
@@ -92,6 +94,17 @@ selected cache or DTCM read owner through its response. `edge_rv_lite_cache_biu`
 `edge_rv_lite_axi_core` carry that hierarchy onto the existing 128-bit Edge AXI
 channel shape. `edge_core_lite_top` composes those proven boundaries with the
 shared DTCM/accelerator subsystem and external AXI ownership mux.
+
+Below the issue-policy boundary, both products instantiate
+`edge_accel_data_ctrl`. This common layer owns direct DMA, XY-strided DMA,
+circular DMA, Tensor circular WLD/SLD/WSLD scheduling, and the Tensor/DTCM
+command mux. The normal core keeps its dual-issue queue and snapshot policy;
+lite keeps its one-command owner. Lite therefore changes scheduling policy,
+not accelerator behavior, and does not contain a rewritten DMA engine.
+
+The lite DTCM router also normalizes raw bank reads to the same size/sign
+formatted response used by D-cache. This is required for standard accelerator
+tests that validate BF16 or byte results through scalar loads.
 
 ## Current benchmark comparison
 
@@ -110,14 +123,42 @@ The Tensor case performs 512 consecutive 8x8 vector steps with one WLD and one
 Tensor start. Its 4096 BF16 output elements are checked after DTCM-to-AXI DMA.
 The five-cycle lite gap is therefore small: serialized scalar issue hurts
 CoreMark substantially, but it does not materially reduce a long Tensor run
-after launch. This case intentionally isolates the Tensor engine. The larger
-64x64 tiled case still needs a lite fallback for the omitted strided DMA and
-cache-maintenance paths before it can be compared fairly.
+after launch. This case intentionally isolates the Tensor engine.
+
+The unchanged standard `bf16_wld_direct_circular.cpp` program is also a lite
+regression. It covers cache clean-by-VA, direct DMA, direct and transposed WLD,
+XY-strided circular DMA, circular WLD, scalar DTCM result checks, DMA sync, and
+the Edge break CSR. A successful return proves that these paths use the same
+shared implementation rather than a reduced lite substitute.
+
+## Shared-layer Yosys guard
+
+The standard `edge-e3@rv` top was synthesized with the Xilinx flow immediately
+before and after extracting `edge_accel_data_ctrl`. Tensor and DTCM attribution
+are bit-for-bit unchanged; the small LUT/mux differences are packing changes
+in the remaining `Other` bucket.
+
+| Resource | Before | After | Delta |
+| --- | ---: | ---: | ---: |
+| Total cells | 283,884 | 283,882 | -2 |
+| LUT1-6 | 169,760 | 169,752 | -8 |
+| Flip-flops | 43,301 | 43,301 | 0 |
+| CARRY4 | 8,425 | 8,425 | 0 |
+| DSP48E1 | 101 | 101 | 0 |
+| BRAM36 / BRAM18 | 38 / 32 | 38 / 32 | 0 / 0 |
+| Tensor cells | 105,956 | 105,956 | 0 |
+| DTCM cells, excluding Tensor | 40,711 | 40,711 | 0 |
+
+The extracted controller itself remains visible as 2,541 synthesized cells,
+including the existing 1,203-cell strided controller, so the matching totals
+are not caused by accidentally optimizing the functionality away.
 
 Build and run the maintained lite Tensor proof with:
 
 ```sh
 cmake --build build/edge-rv-lite --target edge_rv_lite_tensor_stream64_vvp -j2
-ctest --test-dir build/edge-rv-lite -R '^edge_rv_lite_tensor_stream64$' \
+cmake --build build/edge-rv-lite --target edge_rv_lite_tensor_circular_vvp -j2
+ctest --test-dir build/edge-rv-lite \
+  -R '^edge_rv_lite_tensor_(stream64|circular)$' \
   --output-on-failure
 ```

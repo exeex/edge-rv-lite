@@ -236,6 +236,37 @@ add_test(NAME edge_rv_lite_tensor_stream64
           +mem128=${EDGE_LITE_TENSOR_MEMH} +mem128_words=44)
 set_tests_properties(edge_rv_lite_tensor_stream64 PROPERTIES TIMEOUT 60)
 
+set(EDGE_LITE_TENSOR_CIRCULAR_DIR
+    "${CMAKE_CURRENT_BINARY_DIR}/tensor_circular")
+set(EDGE_LITE_TENSOR_CIRCULAR_MEMH
+    "${EDGE_LITE_TENSOR_CIRCULAR_DIR}/edge_rv_lite_tensor_circular.memh")
+add_custom_command(
+  OUTPUT ${EDGE_LITE_TENSOR_CIRCULAR_MEMH}
+  COMMAND ${Python3_EXECUTABLE} ${EDGE_REPO_ROOT}/tools/build_rv64im_rom.py
+          ${EDGE_REPO_ROOT}/tests/software/tensor/bf16_wld_direct_circular.cpp
+          --name edge_rv_lite_tensor_circular
+          --out-dir ${EDGE_LITE_TENSOR_CIRCULAR_DIR}
+          --include-dir ${EDGE_REPO_ROOT}/tests/software/include
+          --extra-cxxflag=-DEDGE_RV_LITE
+          --crt0 ${CMAKE_CURRENT_LIST_DIR}/tests/rv64im_lite_crt0.s
+          --linker ${CMAKE_CURRENT_LIST_DIR}/tests/rv64im_lite_flat.ld
+          --size 0x200000
+  DEPENDS ${EDGE_REPO_ROOT}/tests/software/tensor/bf16_wld_direct_circular.cpp
+          ${EDGE_REPO_ROOT}/tests/software/include/edge_intrinsic.hpp
+          ${CMAKE_CURRENT_LIST_DIR}/tests/rv64im_lite_crt0.s
+          ${CMAKE_CURRENT_LIST_DIR}/tests/rv64im_lite_flat.ld)
+add_custom_target(edge_rv_lite_tensor_circular_rom
+  DEPENDS ${EDGE_LITE_TENSOR_CIRCULAR_MEMH})
+add_custom_target(edge_rv_lite_tensor_circular_vvp ALL
+  DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/tensor_top_obj/Vedge_core_lite_tensor_tb
+          ${EDGE_LITE_TENSOR_CIRCULAR_MEMH})
+add_test(NAME edge_rv_lite_tensor_circular
+  COMMAND ${CMAKE_CURRENT_BINARY_DIR}/tensor_top_obj/Vedge_core_lite_tensor_tb
+          +mem128=${EDGE_LITE_TENSOR_CIRCULAR_MEMH}
+          +mem128_words=104 +return_only)
+set_tests_properties(edge_rv_lite_tensor_circular PROPERTIES
+  REQUIRED_FILES "${EDGE_LITE_TENSOR_CIRCULAR_MEMH}" TIMEOUT 60)
+
 add_custom_command(
   OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/cached_coremark_obj/Vedge_rv_lite_cached_coremark_tb
   COMMAND ${VERILATOR} --binary --timing -Wno-fatal

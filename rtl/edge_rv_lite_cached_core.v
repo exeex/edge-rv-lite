@@ -114,6 +114,10 @@ module edge_rv_lite_cached_core #(
   wire [1:0] dcache_store_req_size;
   wire [63:0] dcache_store_req_data;
   wire [7:0] dcache_store_req_wstrb;
+  wire cache_op_valid,cache_op_ready,cache_op_is_va;
+  wire [1:0] cache_op_kind;
+  wire [63:0] cache_op_addr;
+  wire cache_op_complete_valid;
 
   edge_rv_lite_core #(
     .PC_WIDTH(PC_WIDTH), .DMEM_RESP_FORMATTED(1)
@@ -136,6 +140,10 @@ module edge_rv_lite_cached_core #(
     .dmem_resp_valid(core_dmem_resp_valid),
     .dmem_resp_error(core_dmem_resp_error),
     .dmem_resp_rdata(core_dmem_resp_rdata),
+    .cache_op_valid(cache_op_valid),.cache_op_ready(cache_op_ready),
+    .cache_op_is_va(cache_op_is_va),.cache_op_kind(cache_op_kind),
+    .cache_op_addr(cache_op_addr),
+    .cache_op_complete_valid(cache_op_complete_valid),
     .accel_req_valid(accel_req_valid), .accel_req_ready(accel_req_ready),
     .accel_req_inst(accel_req_inst), .accel_req_src0(accel_req_src0),
     .accel_req_src1(accel_req_src1), .accel_resp_valid(accel_resp_valid),
@@ -169,6 +177,7 @@ module edge_rv_lite_cached_core #(
       .cache_req_valid(cache_core_req_valid),.cache_req_ready(cache_core_req_ready),
       .cache_req_write(cache_core_req_write),.cache_req_addr(cache_core_req_addr),
       .cache_req_wdata(cache_core_req_wdata),.cache_req_wstrb(cache_core_req_wstrb),
+      .core_req_size(core_dmem_req_size),.core_req_signed(core_dmem_req_signed),
       .cache_resp_valid(cache_core_resp_valid),.cache_resp_error(cache_core_resp_error),
       .cache_resp_rdata(cache_core_resp_rdata),.dtcm_req(dtcm_lsu_req),
       .dtcm_ready(dtcm_lsu_ready),.dtcm_we(dtcm_lsu_we),.dtcm_addr(dtcm_lsu_addr),
@@ -277,10 +286,11 @@ module edge_rv_lite_cached_core #(
     .lsu_store_req1_seq_id(8'd0), .lsu_store_req1_epoch(4'd0),
     .lsu_store_req1_addr(64'd0), .lsu_store_req1_size(2'd0),
     .lsu_store_req1_data(64'd0), .lsu_store_req1_wstrb(8'd0),
-    .cache_op_valid(1'b0), .cache_op_ready(), .cache_op_is_va(1'b0),
-    .cache_op_kind(2'd0), .cache_op_addr(64'd0),
+    .cache_op_valid(cache_op_valid), .cache_op_ready(cache_op_ready),
+    .cache_op_is_va(cache_op_is_va),
+    .cache_op_kind(cache_op_kind), .cache_op_addr(cache_op_addr),
     .cache_op_seq_id(8'd0), .cache_op_epoch(4'd0),
-    .cache_op_complete_valid(), .cache_op_complete_seq_id(),
+    .cache_op_complete_valid(cache_op_complete_valid), .cache_op_complete_seq_id(),
     .cache_op_complete_epoch(),
     .clean_wb_valid(dmem_clean_wb_valid),
     .clean_wb_ready(dmem_clean_wb_ready),

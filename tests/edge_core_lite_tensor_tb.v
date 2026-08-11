@@ -21,6 +21,21 @@ module edge_core_lite_tensor_tb;
   wire [63:0] debug_x31, cycle_count, instret_count;
   integer cycles;
   integer word_i;
+  reg return_only;
+  reg trace_cmd;
+
+  always @(posedge clk) begin
+    if (trace_cmd && dut.platform.req_valid && dut.platform.req_ready)
+      $display("lite accel inst=%h capture=%h", dut.platform.req_inst,
+               dut.platform.req_capture_value);
+    if (trace_cmd && dut.platform.dtcm_dma_start_req)
+      $display("lite dma src=%h dst=%h len=%0d", dut.platform.dma_start_addr_src,
+               dut.platform.dma_start_addr_dst, dut.platform.dtcm_dma_start_len);
+    if (trace_cmd && dut.platform.tensor_unit_cmd_wld_req)
+      $display("lite wld ptr=%h trans=0", dut.platform.tensor_unit_cmd_wld_ptr);
+    if (trace_cmd && dut.platform.tensor_unit_cmd_wld_trans_req)
+      $display("lite wld ptr=%h trans=1", dut.platform.tensor_unit_cmd_wld_ptr);
+  end
 
   function [127:0] expected_word;
     input integer index;
@@ -81,6 +96,8 @@ module edge_core_lite_tensor_tb;
   );
 
   initial begin
+    return_only = $test$plusargs("return_only");
+    trace_cmd = $test$plusargs("trace_cmd");
     repeat (4) @(posedge clk);
     reset_n <= 1'b1;
     cycles = 0;
@@ -98,12 +115,18 @@ module edge_core_lite_tensor_tb;
              dut.core.cached_core.core.decoded_legal,
              dut.core.cached_core.core.ex_error,
              dut.core.cached_core.core.accel_resp_error);
-    if (debug_x31 != 64'h100000) $fatal(1, "lite Tensor x31=%h", debug_x31);
-    for (word_i = 0; word_i < 512; word_i = word_i + 1)
-      if (ram.mem[17'h10000 + word_i] !== expected_word(word_i))
-        $fatal(1, "lite Tensor output mismatch word=%0d got=%032h expected=%032h",
-               word_i, ram.mem[17'h10000 + word_i],
-               expected_word(word_i));
+    if (return_only) begin
+      if (debug_x31 != 64'd0)
+        $fatal(1, "lite Tensor program returned %0d", debug_x31);
+    end else begin
+      if (debug_x31 != 64'h100000)
+        $fatal(1, "lite Tensor x31=%h", debug_x31);
+      for (word_i = 0; word_i < 512; word_i = word_i + 1)
+        if (ram.mem[17'h10000 + word_i] !== expected_word(word_i))
+          $fatal(1, "lite Tensor output mismatch word=%0d got=%032h expected=%032h",
+                 word_i, ram.mem[17'h10000 + word_i],
+                 expected_word(word_i));
+    end
     $display("PASS: edge-rv-lite Tensor x30=%0d x31=%0d cycles=%0d instret=%0d",
              dut.core.cached_core.core.gpr[30], debug_x31, cycle_count,
              instret_count);

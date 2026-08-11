@@ -15,6 +15,10 @@ module edge_rv_lite_core #(
   output wire [1:0] dmem_req_size, output wire dmem_req_signed,
   input wire dmem_resp_valid, input wire dmem_resp_error,
   input wire [63:0] dmem_resp_rdata,
+  output wire cache_op_valid,input wire cache_op_ready,
+  output wire cache_op_is_va,output wire [1:0] cache_op_kind,
+  output wire [63:0] cache_op_addr,
+  input wire cache_op_complete_valid,
   output wire accel_req_valid, input wire accel_req_ready,
   output wire [63:0] accel_req_inst,
   output wire [63:0] accel_req_src0, output wire [63:0] accel_req_src1,
@@ -29,7 +33,7 @@ module edge_rv_lite_core #(
     A_ZBA=9, A_ZBA_UW=10;
   reg [63:0] gpr [0:31];
   reg [63:0] cycle_q, instret_q;
-  reg mem_started_q, mul_started_q, accel_started_q;
+  reg mem_started_q, mul_started_q, accel_started_q, cache_started_q;
   integer ri;
 
   wire parcel_valid, parcel_ready, parcel_error;
@@ -76,6 +80,11 @@ module edge_rv_lite_core #(
   wire is_instret=(opc==7'h73)&&(f3==3'b010)&&(ex_inst[31:20]==12'hc02)&&
     (ex_inst[19:15]==0);
   wire is_ebreak=ex_inst==64'h0000_0000_0010_0073;
+  wire is_edge_break=(opc==7'h73)&&(f3==3'b001)&&(rd==5'd0)&&
+    (ex_inst[31:20]==12'h7e0);
+  wire is_edge_cache=(opc==7'h0b)&&(rd==5'd0)&&
+    ((f3==3'b000)||(f3==3'b001))&&
+    (ex_inst[24:22]=={2'b00,f3[0]})&&(ex_inst[21:20]!=2'b00);
   wire legal_branch=(f3==0)||(f3==1)||(f3>=4);
   wire legal_load=f3!=7;
   wire legal_store=f3<=3;
@@ -92,7 +101,7 @@ module edge_rv_lite_core #(
   wire legal_fast=legal_opimm||legal_op||legal_opimm32||legal_op32||
     is_lui||is_auipc||is_jal||is_jalr||(is_branch&&legal_branch);
   wire legal_mem=(is_load&&legal_load)||(is_store&&legal_store);
-  wire legal_sys=is_cycle||is_instret||is_ebreak;
+  wire legal_sys=is_cycle||is_instret||is_ebreak||is_edge_break||is_edge_cache;
   wire [3:0] decoded_class;
   wire decoded_legal, decoded_writes_gpr;
   wire [6:0] decoded_accel_subop;
@@ -165,10 +174,16 @@ module edge_rv_lite_core #(
   assign accel_req_src1=ex_rs2_value;
   wire accel_req_fire=accel_req_valid&&accel_req_ready;
   wire accel_done=is_accel&&accel_started_q&&accel_resp_valid;
+  assign cache_op_valid=ex_valid&&is_edge_cache&&!cache_started_q;
+  assign cache_op_is_va=f3==3'b001;
+  assign cache_op_kind=ex_inst[21:20];
+  assign cache_op_addr=ex_rs1_value;
+  wire cache_req_fire=cache_op_valid&&cache_op_ready;
+  wire cache_done=is_edge_cache&&cache_started_q&&cache_op_complete_valid;
   wire fast_done=ex_valid&&!ex_is_64b&&legal_fast&&!is_muldiv;
-  wire sys_done=ex_valid&&!ex_is_64b&&legal_sys;
+  wire sys_done=ex_valid&&!ex_is_64b&&legal_sys&&!is_edge_cache;
   wire ex_done=fast_done||sys_done||(is_muldiv&&mul_result_valid)||
-    (legal_mem&&lsu_done)||accel_done||(ex_valid&&!ex_legal);
+    (legal_mem&&lsu_done)||accel_done||cache_done||(ex_valid&&!ex_legal);
   wire ex_control=is_jal||is_jalr||is_branch;
   wire redirect=fast_done&&ex_control&&branch_taken;
   wire [63:0] wb_value=is_accel?accel_resp_value:is_muldiv?mul_result:is_load?lsu_value:
@@ -206,18 +221,21 @@ module edge_rv_lite_core #(
     if(!reset_n) begin
       for(ri=0;ri<32;ri=ri+1) gpr[ri]<=0;
       cycle_q<=0; instret_q<=0; mem_started_q<=0; mul_started_q<=0;
-      accel_started_q<=0;
+      accel_started_q<=0; cache_started_q<=0;
       halted<=0; illegal<=0;
     end else begin
       cycle_q<=cycle_q+1; gpr[0]<=0;
       if(lsu_start&&lsu_ready) mem_started_q<=1;
       if(mul_start&&mul_ready) mul_started_q<=1;
       if(accel_req_fire) accel_started_q<=1;
+      if(cache_req_fire) cache_started_q<=1;
       if(ex_done) begin
         mem_started_q<=0; mul_started_q<=0; accel_started_q<=0;
+        cache_started_q<=0;
         if(ex_valid) instret_q<=instret_q+1;
         if(wb_valid) gpr[rd]<=wb_value;
-        if(is_ebreak) halted<=1;
+        if(is_ebreak||is_edge_break) halted<=1;
+        if(is_edge_break) gpr[31]<=ex_rs1_value;
         if(!ex_legal||ex_error||(legal_mem&&lsu_error)||
            (is_accel&&accel_resp_error)) begin illegal<=1; halted<=1; end
       end

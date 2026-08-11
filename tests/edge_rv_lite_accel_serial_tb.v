@@ -20,6 +20,8 @@ module edge_rv_lite_accel_serial_tb;
     .dmem_req_addr(),.dmem_req_wdata(),.dmem_req_wstrb(),
     .dmem_req_size(),.dmem_req_signed(),.dmem_resp_valid(1'b0),
     .dmem_resp_error(1'b0),.dmem_resp_rdata(64'b0),
+    .cache_op_valid(),.cache_op_ready(1'b1),.cache_op_is_va(),
+    .cache_op_kind(),.cache_op_addr(),.cache_op_complete_valid(1'b0),
     .accel_req_valid(accel_req_valid),.accel_req_ready(accel_req_ready),
     .accel_req_inst(accel_req_inst),.accel_req_src0(accel_req_src0),
     .accel_req_src1(accel_req_src1),.accel_resp_valid(accel_resp_valid),

@@ -11,6 +11,7 @@ module edge_rv_lite_dtcm_router #(
   input  wire core_req_write,
   input  wire [ADDR_WIDTH-1:0] core_req_addr,
   input  wire [63:0] core_req_wdata, input wire [7:0] core_req_wstrb,
+  input  wire [1:0] core_req_size, input wire core_req_signed,
   output wire core_resp_valid, output wire core_resp_error,
   output wire [63:0] core_resp_rdata,
   output wire cache_req_valid, input wire cache_req_ready,
@@ -27,6 +28,9 @@ module edge_rv_lite_dtcm_router #(
   localparam OWNER_NONE=2'd0, OWNER_CACHE=2'd1, OWNER_DTCM_LOAD=2'd2;
   reg [1:0] owner_q;
   reg dtcm_store_resp_q;
+  reg [1:0] dtcm_load_size_q;
+  reg dtcm_load_signed_q;
+  reg [2:0] dtcm_load_offset_q;
   wire idle = owner_q==OWNER_NONE && !dtcm_store_resp_q;
   wire hit = dtcm_enable &&
              ((core_req_addr & dtcm_mask)==(dtcm_base & dtcm_mask));
@@ -35,6 +39,24 @@ module edge_rv_lite_dtcm_router #(
   wire dtcm_fire = select_dtcm && dtcm_ready;
   wire cache_fire = select_cache && cache_req_ready;
   wire [ADDR_WIDTH-1:0] dtcm_byte_offset = core_req_addr-dtcm_base;
+  wire [63:0] dtcm_shifted_rdata = dtcm_rdata >>
+                                   (dtcm_load_offset_q * 8);
+  reg [63:0] dtcm_formatted_rdata;
+
+  always @* begin
+    case (dtcm_load_size_q)
+      2'd0: dtcm_formatted_rdata = dtcm_load_signed_q ?
+        {{56{dtcm_shifted_rdata[7]}}, dtcm_shifted_rdata[7:0]} :
+        {56'd0, dtcm_shifted_rdata[7:0]};
+      2'd1: dtcm_formatted_rdata = dtcm_load_signed_q ?
+        {{48{dtcm_shifted_rdata[15]}}, dtcm_shifted_rdata[15:0]} :
+        {48'd0, dtcm_shifted_rdata[15:0]};
+      2'd2: dtcm_formatted_rdata = dtcm_load_signed_q ?
+        {{32{dtcm_shifted_rdata[31]}}, dtcm_shifted_rdata[31:0]} :
+        {32'd0, dtcm_shifted_rdata[31:0]};
+      default: dtcm_formatted_rdata = dtcm_shifted_rdata;
+    endcase
+  end
 
   assign core_req_ready = idle && (hit ? dtcm_ready:cache_req_ready);
   assign cache_req_valid = select_cache;
@@ -51,15 +73,24 @@ module edge_rv_lite_dtcm_router #(
     ((owner_q==OWNER_DTCM_LOAD) && dtcm_rvalid) ||
     ((owner_q==OWNER_CACHE) && cache_resp_valid);
   assign core_resp_error = (owner_q==OWNER_CACHE) ? cache_resp_error:1'b0;
-  assign core_resp_rdata = (owner_q==OWNER_DTCM_LOAD) ? dtcm_rdata:
+  assign core_resp_rdata = (owner_q==OWNER_DTCM_LOAD) ? dtcm_formatted_rdata:
                            cache_resp_rdata;
 
   always @(posedge clk or negedge reset_n) begin
-    if(!reset_n) begin owner_q<=OWNER_NONE; dtcm_store_resp_q<=1'b0; end
+    if(!reset_n) begin
+      owner_q<=OWNER_NONE; dtcm_store_resp_q<=1'b0;
+      dtcm_load_size_q<=2'b0; dtcm_load_signed_q<=1'b0;
+      dtcm_load_offset_q<=3'b0;
+    end
     else begin
       dtcm_store_resp_q<=dtcm_fire&&core_req_write;
       if(cache_fire) owner_q<=OWNER_CACHE;
-      else if(dtcm_fire&&!core_req_write) owner_q<=OWNER_DTCM_LOAD;
+      else if(dtcm_fire&&!core_req_write) begin
+        owner_q<=OWNER_DTCM_LOAD;
+        dtcm_load_size_q<=core_req_size;
+        dtcm_load_signed_q<=core_req_signed;
+        dtcm_load_offset_q<=dtcm_byte_offset[2:0];
+      end
       else if((owner_q==OWNER_CACHE)&&cache_resp_valid) owner_q<=OWNER_NONE;
       else if((owner_q==OWNER_DTCM_LOAD)&&dtcm_rvalid) owner_q<=OWNER_NONE;
     end

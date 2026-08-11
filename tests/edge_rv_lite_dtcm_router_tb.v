@@ -4,6 +4,7 @@ module edge_rv_lite_dtcm_router_tb;
   reg reset_n=0,core_req_valid=0,core_req_write=0;
   reg [63:0] core_req_addr=0,core_req_wdata=0;
   reg [7:0] core_req_wstrb=0;
+  reg [1:0] core_req_size=2'd3; reg core_req_signed=0;
   reg cache_req_ready=0,cache_resp_valid=0,cache_resp_error=0;
   reg [63:0] cache_resp_rdata=0;
   reg dtcm_ready=0,dtcm_rvalid=0; reg [63:0] dtcm_rdata=0;
@@ -28,13 +29,14 @@ module edge_rv_lite_dtcm_router_tb;
       $fatal(1,"cache response route");
     @(posedge clk); #1; cache_resp_valid=0; cache_resp_error=0;
 
-    @(negedge clk); core_req_valid=1; core_req_addr=64'h1000_0018;
+    @(negedge clk); core_req_valid=1; core_req_addr=64'h1000_001a;
+    core_req_size=2'd1; core_req_signed=1'b0;
     core_req_write=0; dtcm_ready=0; #1;
     if(!dtcm_req||cache_req_valid||core_req_ready||dtcm_addr!=14'd3)
       $fatal(1,"dtcm load select/stall");
     dtcm_ready=1; @(posedge clk); #1; core_req_valid=0; dtcm_ready=0;
     repeat(2) @(posedge clk); @(negedge clk);
-    dtcm_rdata=64'h1234; dtcm_rvalid=1; #1;
+    dtcm_rdata=64'hdead_beef_1234_cafe; dtcm_rvalid=1; #1;
     if(!core_resp_valid||core_resp_error||core_resp_rdata!=64'h1234)
       $fatal(1,"dtcm load response");
     @(posedge clk); #1; dtcm_rvalid=0;
