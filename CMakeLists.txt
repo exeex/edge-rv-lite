@@ -70,7 +70,7 @@ add_custom_command(
           --Mdir ${CMAKE_CURRENT_BINARY_DIR}/coremark_obj
           ${CORE_RTL} ${CMAKE_CURRENT_LIST_DIR}/tests/edge_rv_lite_coremark_tb.v
   DEPENDS ${CORE_RTL} ${CMAKE_CURRENT_LIST_DIR}/tests/edge_rv_lite_coremark_tb.v)
-add_custom_target(edge_rv_lite_coremark_vvp
+add_custom_target(edge_rv_lite_coremark_vvp ALL
   DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/coremark_obj/Vedge_rv_lite_coremark_tb)
 add_test(NAME edge_rv_lite_coremark
   COMMAND ${CMAKE_CURRENT_BINARY_DIR}/coremark_obj/Vedge_rv_lite_coremark_tb
@@ -141,7 +141,7 @@ add_custom_command(
           ${CMAKE_CURRENT_LIST_DIR}/tests/edge_rv_lite_axi_coremark_tb.v
   DEPENDS ${AXI_CORE_RTL}
           ${CMAKE_CURRENT_LIST_DIR}/tests/edge_rv_lite_axi_coremark_tb.v)
-add_custom_target(edge_rv_lite_axi_coremark_vvp
+add_custom_target(edge_rv_lite_axi_coremark_vvp ALL
   DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/axi_coremark_obj/Vedge_rv_lite_axi_coremark_tb)
 add_test(NAME edge_rv_lite_axi_coremark
   COMMAND ${CMAKE_CURRENT_BINARY_DIR}/axi_coremark_obj/Vedge_rv_lite_axi_coremark_tb
@@ -158,7 +158,7 @@ add_custom_command(
           ${CMAKE_CURRENT_LIST_DIR}/tests/edge_rv_lite_cached_coremark_tb.v
   DEPENDS ${CACHED_CORE_RTL}
           ${CMAKE_CURRENT_LIST_DIR}/tests/edge_rv_lite_cached_coremark_tb.v)
-add_custom_target(edge_rv_lite_cached_coremark_vvp
+add_custom_target(edge_rv_lite_cached_coremark_vvp ALL
   DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/cached_coremark_obj/Vedge_rv_lite_cached_coremark_tb)
 add_test(NAME edge_rv_lite_cached_coremark
   COMMAND ${CMAKE_CURRENT_BINARY_DIR}/cached_coremark_obj/Vedge_rv_lite_cached_coremark_tb

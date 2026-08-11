@@ -1,4 +1,5 @@
 # Shared, bit-identical edge-rv execution units. Parent defines both roots.
+${ROOT_DIR}/synth/rtl/edge_rv_fpga_ram.v
 ${EDGE_RV_ROOT}/edge_scalar_fast_alu/edge_scalar_fast_alu.v
 ${EDGE_RV_ROOT}/edge_scalar_branch/edge_scalar_branch.v
 ${EDGE_RV_ROOT}/edge_scalar_muldiv/edge_scalar_muldiv.v
