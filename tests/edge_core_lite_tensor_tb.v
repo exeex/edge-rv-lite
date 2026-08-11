@@ -23,6 +23,8 @@ module edge_core_lite_tensor_tb;
   integer word_i;
   reg return_only;
   reg trace_cmd;
+  reg check_matmul64;
+  reg check_matmul128;
 
   always @(posedge clk) begin
     if (trace_cmd && dut.platform.req_valid && dut.platform.req_ready)
@@ -57,6 +59,57 @@ module edge_core_lite_tensor_tb;
       endcase
     end
   endfunction
+
+  function [15:0] matmul_expected_bf16;
+    input integer elem_i;
+    integer out_block;
+    integer token;
+    integer out_lane;
+    integer out_col;
+    integer input_elem_i;
+    begin
+      out_block = elem_i / 512;
+      token = (elem_i % 512) / 8;
+      out_lane = elem_i % 8;
+      out_col = out_block * 8 + out_lane;
+      input_elem_i = (out_col / 8) * 512 + token * 8 + out_col % 8;
+      case (input_elem_i % 13)
+        0: matmul_expected_bf16 = 16'hc0c0;
+        1: matmul_expected_bf16 = 16'hc0a0;
+        2: matmul_expected_bf16 = 16'hc080;
+        3: matmul_expected_bf16 = 16'hc040;
+        4: matmul_expected_bf16 = 16'hc000;
+        5: matmul_expected_bf16 = 16'hbf80;
+        6: matmul_expected_bf16 = 16'h0000;
+        7: matmul_expected_bf16 = 16'h3f80;
+        8: matmul_expected_bf16 = 16'h4000;
+        9: matmul_expected_bf16 = 16'h4040;
+        10: matmul_expected_bf16 = 16'h4080;
+        11: matmul_expected_bf16 = 16'h40a0;
+        default: matmul_expected_bf16 = 16'h40c0;
+      endcase
+    end
+  endfunction
+
+  task check_matmul_output;
+    input integer words;
+    integer check_word;
+    integer lane;
+    integer elem;
+    reg [127:0] expected;
+    begin
+      for (check_word = 0; check_word < words; check_word = check_word + 1) begin
+        expected = 128'b0;
+        for (lane = 0; lane < 8; lane = lane + 1) begin
+          elem = check_word * 8 + lane;
+          expected[lane * 16 +: 16] = matmul_expected_bf16(elem);
+        end
+        if (ram.mem[17'h10000 + check_word] !== expected)
+          $fatal(1, "lite matmul output mismatch word=%0d got=%032h expected=%032h",
+                 check_word, ram.mem[17'h10000 + check_word], expected);
+      end
+    end
+  endtask
 
   edge_core_lite_top dut (
     .forever_cpuclk(clk), .cpurst_b(reset_n),
@@ -98,6 +151,8 @@ module edge_core_lite_tensor_tb;
   initial begin
     return_only = $test$plusargs("return_only");
     trace_cmd = $test$plusargs("trace_cmd");
+    check_matmul64 = $test$plusargs("check_matmul64");
+    check_matmul128 = $test$plusargs("check_matmul128");
     repeat (4) @(posedge clk);
     reset_n <= 1'b1;
     cycles = 0;
@@ -118,6 +173,10 @@ module edge_core_lite_tensor_tb;
     if (return_only) begin
       if (debug_x31 != 64'd0)
         $fatal(1, "lite Tensor program returned %0d", debug_x31);
+      if (check_matmul64)
+        check_matmul_output(512);
+      if (check_matmul128)
+        check_matmul_output(1024);
     end else begin
       if (debug_x31 != 64'h100000)
         $fatal(1, "lite Tensor x31=%h", debug_x31);

@@ -267,6 +267,41 @@ add_test(NAME edge_rv_lite_tensor_circular
 set_tests_properties(edge_rv_lite_tensor_circular PROPERTIES
   REQUIRED_FILES "${EDGE_LITE_TENSOR_CIRCULAR_MEMH}" TIMEOUT 60)
 
+function(edge_lite_add_tensor_benchmark name source words check_arg)
+  set(case_dir "${CMAKE_CURRENT_BINARY_DIR}/${name}")
+  set(case_memh "${case_dir}/${name}.memh")
+  add_custom_command(
+    OUTPUT ${case_memh}
+    COMMAND ${Python3_EXECUTABLE} ${EDGE_REPO_ROOT}/tools/build_rv64im_rom.py
+            ${EDGE_REPO_ROOT}/tests/software/tensor/${source}
+            --name ${name} --out-dir ${case_dir}
+            --include-dir ${EDGE_REPO_ROOT}/tests/software/include
+            --extra-cxxflag=-DEDGE_RV_LITE
+            --crt0 ${CMAKE_CURRENT_LIST_DIR}/tests/rv64im_lite_crt0.s
+            --linker ${CMAKE_CURRENT_LIST_DIR}/tests/rv64im_lite_flat.ld
+            --size 0x200000
+    DEPENDS ${EDGE_REPO_ROOT}/tests/software/tensor/${source}
+            ${EDGE_REPO_ROOT}/tests/software/include/edge_intrinsic.hpp
+            ${CMAKE_CURRENT_LIST_DIR}/tests/rv64im_lite_crt0.s
+            ${CMAKE_CURRENT_LIST_DIR}/tests/rv64im_lite_flat.ld)
+  add_custom_target(${name}_vvp ALL
+    DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/tensor_top_obj/Vedge_core_lite_tensor_tb
+            ${case_memh})
+  add_test(NAME ${name}
+    COMMAND ${CMAKE_CURRENT_BINARY_DIR}/tensor_top_obj/Vedge_core_lite_tensor_tb
+            +mem128=${case_memh} +mem128_words=${words}
+            +return_only +${check_arg})
+  set_tests_properties(${name} PROPERTIES
+    REQUIRED_FILES "${case_memh}" TIMEOUT 60)
+endfunction()
+
+edge_lite_add_tensor_benchmark(
+  edge_rv_lite_matmul64x64_64tokens_circular
+  matmul64x64_64tokens_tiled_circular.cpp 337 check_matmul64)
+edge_lite_add_tensor_benchmark(
+  edge_rv_lite_matmul64x64_128tokens_circular
+  matmul64x64_128tokens_tiled_circular.cpp 341 check_matmul128)
+
 add_custom_command(
   OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/cached_coremark_obj/Vedge_rv_lite_cached_coremark_tb
   COMMAND ${VERILATOR} --binary --timing -Wno-fatal

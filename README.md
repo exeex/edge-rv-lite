@@ -118,12 +118,24 @@ metric; whole-harness cycles include boot and setup work.
 | CoreMark | retired instructions | 616,228 | 616,228 | 1.000x |
 | `tile8x8_stream64tokens` | X30 Tensor window | 534 | 539 | 1.009x |
 | `tile8x8_stream64tokens` | ideal / X30 utilization | 95.88% | 94.99% | -0.89 pp |
+| `matmul64x64_64tokens_tiled_circular` | X30 Tensor window | 4,629 | 4,671 | 1.009x |
+| `matmul64x64_64tokens_tiled_circular` | MAC utilization | 88.49% | 87.69% | -0.80 pp |
+| `matmul64x64_128tokens_tiled_circular` | X30 Tensor window | 8,751 | 8,794 | 1.005x |
+| `matmul64x64_128tokens_tiled_circular` | MAC utilization | 93.61% | 93.15% | -0.46 pp |
 
 The Tensor case performs 512 consecutive 8x8 vector steps with one WLD and one
 Tensor start. Its 4096 BF16 output elements are checked after DTCM-to-AXI DMA.
 The five-cycle lite gap is therefore small: serialized scalar issue hurts
 CoreMark substantially, but it does not materially reduce a long Tensor run
 after launch. This case intentionally isolates the Tensor engine.
+
+The two tiled circular cases use exactly the same C++ source on both cores and
+check every 4096- or 8192-element BF16 output in the testbench. The 64-token
+case includes circular weight DMA/WLD; the 128-token case additionally uses
+packed-XY DMA and transposed circular WLD. Lite is 42 cycles (0.91%) slower in
+the former and 43 cycles (0.49%) slower in the latter. The nearly fixed gap
+shows that serialized scalar command issue adds setup cost but does not reduce
+steady Tensor throughput.
 
 The unchanged standard `bf16_wld_direct_circular.cpp` program is also a lite
 regression. It covers cache clean-by-VA, direct DMA, direct and transposed WLD,
@@ -158,7 +170,10 @@ Build and run the maintained lite Tensor proof with:
 ```sh
 cmake --build build/edge-rv-lite --target edge_rv_lite_tensor_stream64_vvp -j2
 cmake --build build/edge-rv-lite --target edge_rv_lite_tensor_circular_vvp -j2
+cmake --build build/edge-rv-lite --target \
+  edge_rv_lite_matmul64x64_64tokens_circular_vvp \
+  edge_rv_lite_matmul64x64_128tokens_circular_vvp -j2
 ctest --test-dir build/edge-rv-lite \
-  -R '^edge_rv_lite_tensor_(stream64|circular)$' \
+  -R '^edge_rv_lite_(tensor_(stream64|circular)|matmul64x64_(64|128)tokens_circular)$' \
   --output-on-failure
 ```
