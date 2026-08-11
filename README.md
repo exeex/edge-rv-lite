@@ -106,7 +106,7 @@ The lite DTCM router also normalizes raw bank reads to the same size/sign
 formatted response used by D-cache. This is required for standard accelerator
 tests that validate BF16 or byte results through scalar loads.
 
-## Current benchmark comparison
+## CoreMark and Tensor benchmark report
 
 All numbers below are current local Verilator results using the same software
 source on `edge-e3@rv` and `edge-e3@rv-lite`. Internal `rdcycle` is the primary
@@ -164,6 +164,57 @@ in the remaining `Other` bucket.
 The extracted controller itself remains visible as 2,541 synthesized cells,
 including the existing 1,203-cell strided controller, so the matching totals
 are not caused by accidentally optimizing the functionality away.
+
+## Full-top Yosys comparison
+
+Both product tops were synthesized from the same revision with Yosys
+`synth_xilinx -family xc7 -noiopad -noclkbuf`. `edge_core_top` uses the normal
+dual-issue scalar owner; `edge_core_lite_top` replaces only that outer owner
+with the serialized rv-lite core. Both tops retain the same Tensor, DMA, DTCM,
+ACTU/CMPU, I-cache, and D-cache product RTL and use the same SRAM-to-BRAM
+wrappers.
+
+| Resource | `edge-e3@rv` | `edge-e3@rv-lite` | Lite delta | Lite / RV |
+| --- | ---: | ---: | ---: | ---: |
+| Total cells | 283,882 | 185,360 | -98,522 | 65.3% |
+| LUT1-6 | 169,752 | 106,185 | -63,567 | 62.6% |
+| Flip-flops | 43,301 | 31,467 | -11,834 | 72.7% |
+| CARRY4 | 8,425 | 7,060 | -1,365 | 83.8% |
+| DSP48E1 | 101 | 99 | -2 | 98.0% |
+| MUXF7 | 16,798 | 9,424 | -7,374 | 56.1% |
+| MUXF8 | 5,113 | 2,847 | -2,266 | 55.7% |
+| BRAM36 / BRAM18 | 38 / 32 | 38 / 32 | 0 / 0 | 100% / 100% |
+
+The hierarchy attribution confirms where the reduction comes from:
+
+| Bucket | `edge-e3@rv` cells | `edge-e3@rv-lite` cells | Lite delta | Lite share |
+| --- | ---: | ---: | ---: | ---: |
+| Tensor | 105,956 | 106,052 | +96 | 57.2% |
+| DTCM/DMA, excluding Tensor | 40,711 | 40,987 | +276 | 22.1% |
+| Other | 137,215 | 38,321 | -98,894 | 20.7% |
+| Total | 283,882 | 185,360 | -98,522 | 100.0% |
+
+The small Tensor and DTCM bucket differences are top-context LUT/mux mapping
+changes: Tensor keeps the same 72 DSP48E1 and 16,634 flip-flops, DTCM keeps the
+same 19 DSP48E1, 6,665 flip-flops, and 32 RAMB36E1. The large reduction is in
+`Other`, as expected from removing the normal scalar snapshot, queue, FPU, and
+dual-issue machinery. The lite top is therefore 34.7% smaller in total Yosys
+cells while preserving the accelerator and memory capacity used by the Tensor
+benchmarks above.
+
+Reproduce the comparison with:
+
+```sh
+STAREDGE_YOSYS_VARIANT=xilinx-top-compare-20260811 \
+  ./synth/run_yosys.sh edge_core_top xilinx \
+  synth/filelists/edge_existing.fl
+STAREDGE_YOSYS_VARIANT=xilinx-top-compare-20260811 \
+  ./synth/run_yosys.sh edge_core_lite_top xilinx \
+  synth/filelists/edge_lite_top.fl
+```
+
+These are FPGA-oriented Yosys estimates, not Vivado placement/routing or ASIC
+area results.
 
 Build and run the maintained lite Tensor proof with:
 
