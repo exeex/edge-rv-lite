@@ -33,6 +33,12 @@ module edge_rv_lite_decode_tb;
 
   initial begin
     check_accel(1'b1, 7'h11, 1'b1); // tensor.wld
+    check_accel(1'b1, 7'h15, 1'b1); // tensor.start
+    check_accel(1'b1, 7'h19, 1'b1); // tensor.start_tile
+    check_accel(1'b1, 7'h1b, 1'b1); // tensor.wld_circular
+    check_accel(1'b1, 7'h1c, 1'b1); // tensor.wld_t_circular
+    check_accel(1'b1, 7'h1e, 1'b1); // tensor.wsld_circular
+    check_accel(1'b1, 7'h1f, 1'b1); // tensor.sld_circular
     check_accel(1'b1, 7'h24, 1'b1); // actu.setscalar
     check_accel(1'b1, 7'h7f, 1'b0); // unallocated ASIC command
     check_accel(1'b0, 7'h33, 1'b1); // structurally valid vector opcode

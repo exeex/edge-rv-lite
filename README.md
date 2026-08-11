@@ -90,5 +90,34 @@ the maintained I/D caches. An optional stateful DTCM router bypasses D-cache for
 the configured base/mask window, acknowledges accepted stores, and retains the
 selected cache or DTCM read owner through its response. `edge_rv_lite_cache_biu` and
 `edge_rv_lite_axi_core` carry that hierarchy onto the existing 128-bit Edge AXI
-channel shape. The remaining product step composes those proven boundaries with
-the shared DTCM/accelerator subsystem and external AXI ownership mux.
+channel shape. `edge_core_lite_top` composes those proven boundaries with the
+shared DTCM/accelerator subsystem and external AXI ownership mux.
+
+## Current benchmark comparison
+
+All numbers below are current local Verilator results using the same software
+source on `edge-e3@rv` and `edge-e3@rv-lite`. Internal `rdcycle` is the primary
+metric; whole-harness cycles include boot and setup work.
+
+| Case | Metric | edge-e3@rv | edge-e3@rv-lite | Lite / RV |
+| --- | --- | ---: | ---: | ---: |
+| CoreMark, 2 iterations | cycles/iteration | 409,503 | 785,777 | 1.919x |
+| CoreMark | retired instructions | 616,228 | 616,228 | 1.000x |
+| `tile8x8_stream64tokens` | X30 Tensor window | 534 | 539 | 1.009x |
+| `tile8x8_stream64tokens` | ideal / X30 utilization | 95.88% | 94.99% | -0.89 pp |
+
+The Tensor case performs 512 consecutive 8x8 vector steps with one WLD and one
+Tensor start. Its 4096 BF16 output elements are checked after DTCM-to-AXI DMA.
+The five-cycle lite gap is therefore small: serialized scalar issue hurts
+CoreMark substantially, but it does not materially reduce a long Tensor run
+after launch. This case intentionally isolates the Tensor engine. The larger
+64x64 tiled case still needs a lite fallback for the omitted strided DMA and
+cache-maintenance paths before it can be compared fairly.
+
+Build and run the maintained lite Tensor proof with:
+
+```sh
+cmake --build build/edge-rv-lite --target edge_rv_lite_tensor_stream64_vvp -j2
+ctest --test-dir build/edge-rv-lite -R '^edge_rv_lite_tensor_stream64$' \
+  --output-on-failure
+```

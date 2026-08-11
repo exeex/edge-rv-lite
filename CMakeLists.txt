@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.20)
 project(edge_rv_lite LANGUAGES NONE)
 
 find_program(VERILATOR verilator REQUIRED)
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
 enable_testing()
 
 set(RTL
@@ -194,6 +195,46 @@ add_test(NAME edge_rv_lite_axi_coremark
           +mem64=${EDGE_COREMARK_MEM64})
 set_tests_properties(edge_rv_lite_axi_coremark PROPERTIES
   REQUIRED_FILES "${EDGE_COREMARK_MEM64}" TIMEOUT 60)
+
+set(EDGE_REPO_ROOT "${CMAKE_CURRENT_LIST_DIR}/../..")
+set(EDGE_LITE_TENSOR_DIR "${CMAKE_CURRENT_BINARY_DIR}/tensor_stream64")
+set(EDGE_LITE_TENSOR_MEMH
+    "${EDGE_LITE_TENSOR_DIR}/edge_rv_lite_tensor_stream64.memh")
+add_custom_command(
+  OUTPUT ${EDGE_LITE_TENSOR_MEMH}
+  COMMAND ${Python3_EXECUTABLE} ${EDGE_REPO_ROOT}/tools/build_rv64im_rom.py
+          ${EDGE_REPO_ROOT}/tests/software/tensor/tile8x8_stream64tokens.cpp
+          --name edge_rv_lite_tensor_stream64 --out-dir ${EDGE_LITE_TENSOR_DIR}
+          --include-dir ${EDGE_REPO_ROOT}/tests/software/include
+          --extra-cxxflag=-DEDGE_RV_LITE
+          --crt0 ${CMAKE_CURRENT_LIST_DIR}/tests/rv64im_lite_crt0.s
+          --linker ${CMAKE_CURRENT_LIST_DIR}/tests/rv64im_lite_flat.ld
+          --size 0x200000
+  DEPENDS ${EDGE_REPO_ROOT}/tests/software/tensor/tile8x8_stream64tokens.cpp
+          ${EDGE_REPO_ROOT}/tests/software/include/edge_intrinsic.hpp
+          ${CMAKE_CURRENT_LIST_DIR}/tests/rv64im_lite_crt0.s
+          ${CMAKE_CURRENT_LIST_DIR}/tests/rv64im_lite_flat.ld)
+add_custom_target(edge_rv_lite_tensor_stream64_rom
+  DEPENDS ${EDGE_LITE_TENSOR_MEMH})
+
+add_custom_command(
+  OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/tensor_top_obj/Vedge_core_lite_tensor_tb
+  COMMAND ${VERILATOR} --binary --timing -Wno-fatal --sv
+          --top-module edge_core_lite_tensor_tb
+          --Mdir ${CMAKE_CURRENT_BINARY_DIR}/tensor_top_obj
+          -f edge_core/filelists/edge_core_lite_top_verilator.fl
+          ../soc/logical/mem/edge_axi_ram.v
+          ../edge-rv-lite/tests/edge_core_lite_tensor_tb.v
+  WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}/../edge-e3
+  DEPENDS ${CMAKE_CURRENT_LIST_DIR}/tests/edge_core_lite_tensor_tb.v
+          ${CMAKE_CURRENT_LIST_DIR}/../edge-e3/edge_core/filelists/edge_core_lite_top_verilator.fl)
+add_custom_target(edge_rv_lite_tensor_stream64_vvp ALL
+  DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/tensor_top_obj/Vedge_core_lite_tensor_tb
+          ${EDGE_LITE_TENSOR_MEMH})
+add_test(NAME edge_rv_lite_tensor_stream64
+  COMMAND ${CMAKE_CURRENT_BINARY_DIR}/tensor_top_obj/Vedge_core_lite_tensor_tb
+          +mem128=${EDGE_LITE_TENSOR_MEMH} +mem128_words=44)
+set_tests_properties(edge_rv_lite_tensor_stream64 PROPERTIES TIMEOUT 60)
 
 add_custom_command(
   OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/cached_coremark_obj/Vedge_rv_lite_cached_coremark_tb
