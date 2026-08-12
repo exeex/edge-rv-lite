@@ -81,6 +81,18 @@ set(EDGE_RV_ROOT "${CMAKE_CURRENT_LIST_DIR}/../edge-rv" CACHE PATH
 set(EDGE_COREMARK_MEM64
     "${CMAKE_CURRENT_LIST_DIR}/../../build/cmake-harness/tests/hardware/EDGE_SOC/software/coremark_bench/coremark_bench.data64.memh"
     CACHE FILEPATH "CoreMark RV64 memory image built by the edge-e3 harness")
+set(FPU_RTL
+  ${EDGE_RV_ROOT}/edge_fpu_misc/edge_fpu_misc.v
+  ${EDGE_RV_ROOT}/edge_fpu_cvt/edge_fpu_cvt.v
+  ${EDGE_RV_ROOT}/edge_fpu_slow/edge_fpu_slow.v
+  ${EDGE_RV_ROOT}/edge_fpu_fmac/rtl/edge_fpu_fmac_align_add.v
+  ${EDGE_RV_ROOT}/edge_fpu_fmac/rtl/edge_fpu_fmac_narrow_fmadd.v
+  ${EDGE_RV_ROOT}/edge_fpu_fmac/rtl/edge_fpu_fmac_fp32_round_pack.v
+  ${EDGE_RV_ROOT}/edge_fpu_fmac/rtl/edge_fpu_fmac_narrow_shift_sticky_2stage.v
+  ${EDGE_RV_ROOT}/edge_fpu_fmac/rtl/edge_fpu_fmac_fp32_unpack.v
+  ${EDGE_RV_ROOT}/edge_fpu_fmac/rtl/edge_fpu_fmac_fp32_fused_round_pack.v
+  ${EDGE_RV_ROOT}/edge_fpu_fmac/edge_fpu_fmac.v
+  ${EDGE_RV_ROOT}/edge_fpu_alu/edge_fpu_alu.v)
 set(CORE_RTL
   ${EDGE_RV_ROOT}/edge_instruction_classifier/edge_instruction_classifier.v
   ${CMAKE_CURRENT_LIST_DIR}/rtl/edge_rv_lite_decode.v
@@ -89,11 +101,36 @@ set(CORE_RTL
   ${EDGE_RV_ROOT}/edge_scalar_divrem/edge_scalar_divrem.v
   ${EDGE_RV_ROOT}/edge_scalar_muldiv/edge_scalar_muldiv.v
   ${EDGE_RV_ROOT}/edge_scalar_muldiv/edge_scalar_muldiv_leaf.v
+  ${FPU_RTL}
   ${CMAKE_CURRENT_LIST_DIR}/rtl/edge_rv_lite_frontend.v
   ${CMAKE_CURRENT_LIST_DIR}/rtl/edge_rv_lite_instruction_assembler.v
   ${CMAKE_CURRENT_LIST_DIR}/rtl/edge_rv_lite_pipeline.v
   ${CMAKE_CURRENT_LIST_DIR}/rtl/edge_rv_lite_lsu.v
   ${CMAKE_CURRENT_LIST_DIR}/rtl/edge_rv_lite_core.v)
+
+add_custom_command(
+  OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/fpu_alu_obj/Vedge_fpu_alu_tb
+  COMMAND ${VERILATOR} --binary --timing -Wno-fatal
+          --top-module edge_fpu_alu_tb
+          --Mdir ${CMAKE_CURRENT_BINARY_DIR}/fpu_alu_obj
+          ${FPU_RTL} ${CMAKE_CURRENT_LIST_DIR}/tests/edge_fpu_alu_tb.v
+  DEPENDS ${FPU_RTL} ${CMAKE_CURRENT_LIST_DIR}/tests/edge_fpu_alu_tb.v)
+add_custom_target(edge_fpu_alu_vvp
+  DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/fpu_alu_obj/Vedge_fpu_alu_tb)
+add_test(NAME edge_fpu_alu
+  COMMAND ${CMAKE_CURRENT_BINARY_DIR}/fpu_alu_obj/Vedge_fpu_alu_tb)
+
+add_custom_command(
+  OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/lite_fpu_obj/Vedge_rv_lite_fpu_tb
+  COMMAND ${VERILATOR} --binary --timing -Wno-fatal
+          --top-module edge_rv_lite_fpu_tb
+          --Mdir ${CMAKE_CURRENT_BINARY_DIR}/lite_fpu_obj
+          ${CORE_RTL} ${CMAKE_CURRENT_LIST_DIR}/tests/edge_rv_lite_fpu_tb.v
+  DEPENDS ${CORE_RTL} ${CMAKE_CURRENT_LIST_DIR}/tests/edge_rv_lite_fpu_tb.v)
+add_custom_target(edge_rv_lite_fpu_vvp
+  DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/lite_fpu_obj/Vedge_rv_lite_fpu_tb)
+add_test(NAME edge_rv_lite_fpu
+  COMMAND ${CMAKE_CURRENT_BINARY_DIR}/lite_fpu_obj/Vedge_rv_lite_fpu_tb)
 
 add_custom_command(
   OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/coremark_obj/Vedge_rv_lite_coremark_tb

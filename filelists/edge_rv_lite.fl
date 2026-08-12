@@ -17,6 +17,7 @@ ${EDGE_RV_ROOT}/edge_fpu_fmac/rtl/edge_fpu_fmac_narrow_shift_sticky_2stage.v
 ${EDGE_RV_ROOT}/edge_fpu_fmac/rtl/edge_fpu_fmac_fp32_unpack.v
 ${EDGE_RV_ROOT}/edge_fpu_fmac/rtl/edge_fpu_fmac_fp32_fused_round_pack.v
 ${EDGE_RV_ROOT}/edge_fpu_fmac/edge_fpu_fmac.v
+${EDGE_RV_ROOT}/edge_fpu_alu/edge_fpu_alu.v
 ${EDGE_RV_LITE_ROOT}/rtl/edge_rv_lite_decode.v
 ${EDGE_RV_LITE_ROOT}/rtl/edge_rv_lite_frontend.v
 ${EDGE_RV_LITE_ROOT}/rtl/edge_rv_lite_instruction_assembler.v

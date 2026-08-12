@@ -109,11 +109,61 @@ ACTU/CMPU/get-CSR envelope selected by the `7'h3f` length marker.
 
 The ALU, branch, MUL/DIV and FPU RTL is not forked: the lite filelist references
 the implementations in `../edge-rv` directly. Lite owns only predecode/control,
-the one-entry LSU/BIU path, and the serialized ASIC glue.
+the one-entry LSU/BIU path, and the serialized ASIC glue. `ENABLE_FPU` defaults
+to `0` on the bare, cached, and AXI tops. Setting it to `1` instantiates the
+shared single-issue `edge_fpu_alu`, enables FP32 load/store and arithmetic, and
+reports FPU version 1 in hardware ID CSR `0xfc0`.
 
 The "one-entry LSU" is not an outstanding queue. It is one request register and
 a three-state `IDLE -> REQUEST -> RESPONSE` controller. The whole core waits for
 that response before another instruction may enter execution.
+
+## Optional FPU and precision normalization
+
+`ENABLE_FPU` defaults to `0`. Enabling it adds the shared single-issue
+`edge_fpu_alu` and FPR file. FP8, FP16, BF16, FP32, and FP64 are memory formats:
+loads convert to FP32, all arithmetic uses the FP32 ALU, and stores convert from
+FP32. This lets bare-metal C++ accept accidental `double` code (`1.0` instead
+of `1.0f`) without soft-float helpers, but does not provide FP64 accuracy.
+
+FP memory instructions use I-type loads (`opcode=0000111`) and S-type stores
+(`opcode=0100111`). `imm[11:0]`, `rs1`, and `rd`/`rs2` retain their standard
+positions.
+
+| Memory format | Load encoding: `imm[11:0] rs1 funct3 rd opcode` | Store encoding: `imm[11:5] rs2 rs1 funct3 imm[4:0] opcode` | Bytes |
+| --- | --- | --- | ---: |
+| FP16 | `imm rs1 001 rd 0000111` | `imm[11:5] rs2 rs1 001 imm[4:0] 0100111` | 2 |
+| BF16 | `imm rs1 101 rd 0000111` | `imm[11:5] rs2 rs1 101 imm[4:0] 0100111` | 2 |
+| FP8 E5M2 | `imm rs1 110 rd 0000111` | `imm[11:5] rs2 rs1 110 imm[4:0] 0100111` | 1 |
+| FP8 E4M3FN | `imm rs1 111 rd 0000111` | `imm[11:5] rs2 rs1 111 imm[4:0] 0100111` | 1 |
+
+Arithmetic format suffixes do not select different datapaths. For example,
+`fmul.s`, `fmul.h`, and `fmul.d` ignore `fmt=inst[26:25]` and all execute as
+`fmul.s` on the physical FP32 operands.
+
+Enable the FPU when software needs to:
+
+1. Generate test or model data, such as FP8 weights.
+2. Implement a fallback kernel for an operation not supported by ACTU, CMPU,
+   or another ASIC unit. It is slower, but guarantees a software path exists.
+3. Use floating-point formatting such as `printf("%f", value)` to dump data.
+4. Compute reference results in C++ and check ASIC outputs during bring-up.
+
+Once the ASIC units cover the complete workload and FPU-based generation,
+fallback, debug, and validation are no longer needed, disable the FPU to
+recover ASIC area and FPGA resources.
+
+Standalone Yosys `synth_xilinx -family xc7` estimate for `edge_fpu_alu`:
+
+| Resource | Additional FPU cost |
+| --- | ---: |
+| Total cells | 15,604 |
+| LUT1-6 | 9,260 |
+| Flip-flops | 2,080 |
+| CARRY4 | 458 |
+| DSP48E1 | 2 |
+| MUXF7 | 1,165 |
+| MUXF8 | 274 |
 
 ## Drop-in boundary
 

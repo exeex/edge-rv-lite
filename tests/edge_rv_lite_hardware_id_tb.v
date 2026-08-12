@@ -7,6 +7,7 @@ module edge_rv_lite_hardware_id_tb;
   wire halted,illegal; wire [63:0] debug_x31;
 
   edge_rv_lite_core #(
+    .ENABLE_FPU(1),
     .EDGE_ASIC_ID({15'd3,4'd3,4'd3,8'h03,8'h01,8'h01})
   ) dut(
     .clk(clk),.reset_n(reset_n),
@@ -37,7 +38,7 @@ module edge_rv_lite_hardware_id_tb;
     repeat(3) @(posedge clk); reset_n<=1;
     wait(halted);
     if(illegal) $fatal(1,"hardware ID CSR decoded as illegal");
-    if(debug_x31!==64'h0100_0300_3303_0101)
+    if(debug_x31!==64'h0100_0310_3303_0101)
       $fatal(1,"lite hardware ID mismatch: %h",debug_x31);
     $display("EDGE_RV_LITE_HARDWARE_ID TEST PASS id=%h",debug_x31);
     $finish;

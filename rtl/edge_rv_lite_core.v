@@ -3,6 +3,7 @@
 module edge_rv_lite_core #(
   parameter PC_WIDTH = 40,
   parameter DMEM_RESP_FORMATTED = 0,
+  parameter ENABLE_FPU = 0,
   parameter [46:0] EDGE_ASIC_ID = 47'd0
 ) (
   input wire clk, input wire reset_n,
@@ -34,7 +35,7 @@ module edge_rv_lite_core #(
     A_ZBA=9, A_ZBA_UW=10;
   reg [63:0] gpr [0:31];
   reg [63:0] cycle_q, instret_q;
-  reg mem_started_q, mul_started_q, accel_started_q, cache_started_q;
+  reg mem_started_q, mul_started_q, fpu_started_q, accel_started_q, cache_started_q;
   integer ri;
 
   wire parcel_valid, parcel_ready, parcel_error;
@@ -70,6 +71,10 @@ module edge_rv_lite_core #(
   wire is_jal=opc==7'h6f, is_jalr=(opc==7'h67)&&(f3==0);
   wire is_branch=opc==7'h63;
   wire is_load=opc==7'h03, is_store=opc==7'h23;
+  wire is_fp_load=(opc==7'h07)&&(f3==3'b010);
+  wire is_fp_store=(opc==7'h27)&&(f3==3'b010);
+  wire is_fp_compute=(opc==7'h53)||(opc==7'h43)||(opc==7'h47)||
+                     (opc==7'h4b)||(opc==7'h4f);
   wire is_muldiv=(is_op||is_op32)&&(f7==7'b0000001);
   wire is_zba=is_op&&(f7==7'b0010000)&&
     ((f3==2)||(f3==4)||(f3==6));
@@ -103,7 +108,8 @@ module edge_rv_lite_core #(
     ((f3==1)&&(f7==0))||((f3==5)&&((f7==0)||(f7==7'b0100000))));
   wire legal_fast=legal_opimm||legal_op||legal_opimm32||legal_op32||
     is_lui||is_auipc||is_jal||is_jalr||(is_branch&&legal_branch);
-  wire legal_mem=(is_load&&legal_load)||(is_store&&legal_store);
+  wire legal_mem=(is_load&&legal_load)||(is_store&&legal_store)||
+                 (ENABLE_FPU&&(is_fp_load||is_fp_store));
   wire legal_sys=is_cycle||is_instret||is_hardware_id||is_ebreak||
     is_edge_break||is_edge_cache;
   wire [3:0] decoded_class;
@@ -115,8 +121,10 @@ module edge_rv_lite_core #(
     .writes_gpr(decoded_writes_gpr), .accel_subop(decoded_accel_subop),
     .accel_needs_capture(), .accel_capture_src_gpr());
   wire is_accel=ex_is_64b&&(decoded_class==4'd8);
+  wire fpu_legal;
   wire ex_legal=is_accel ? decoded_legal :
-                (!ex_is_64b&&(legal_fast||legal_mem||legal_sys));
+                (!ex_is_64b&&(legal_fast||legal_mem||legal_sys||
+                              (ENABLE_FPU&&is_fp_compute&&fpu_legal)));
 
   wire [11:0] i12=ex_inst[31:20];
   wire [11:0] s12={ex_inst[31:25],ex_inst[11:7]};
@@ -160,17 +168,40 @@ module edge_rv_lite_core #(
 
   wire lsu_ready,lsu_done,lsu_error,lsu_busy; wire [63:0] lsu_value;
   wire lsu_start=ex_valid&&legal_mem&&!mem_started_q;
+  wire [31:0] fpu_store_value;
   edge_rv_lite_lsu #(.MEM_RESP_FORMATTED(DMEM_RESP_FORMATTED)) lsu(
     .clk(clk),.reset_n(reset_n),.op_valid(lsu_start),
-    .op_ready(lsu_ready),.op_store(is_store),.op_funct3(f3),
-    .op_base(ex_rs1_value),.op_offset(is_store?imm_s:imm_i),
-    .op_store_data(ex_rs2_value),.mem_req_valid(dmem_req_valid),
+    .op_ready(lsu_ready),.op_store(is_store||is_fp_store),.op_funct3(f3),
+    .op_base(ex_rs1_value),.op_offset((is_store||is_fp_store)?imm_s:imm_i),
+    .op_store_data(is_fp_store?{32'b0,fpu_store_value}:ex_rs2_value),.mem_req_valid(dmem_req_valid),
     .mem_req_ready(dmem_req_ready),.mem_req_write(dmem_req_write),
     .mem_req_addr(dmem_req_addr),.mem_req_wdata(dmem_req_wdata),
     .mem_req_wstrb(dmem_req_wstrb),.mem_req_size(dmem_req_size),
     .mem_req_signed(dmem_req_signed),.mem_resp_valid(dmem_resp_valid),
     .mem_resp_error(dmem_resp_error),.mem_resp_rdata(dmem_resp_rdata),
     .op_done(lsu_done),.op_error(lsu_error),.op_load_value(lsu_value),.busy(lsu_busy));
+
+  wire fpu_ready, fpu_done, fpu_gpr_write;
+  wire [4:0] fpu_rd; wire [63:0] fpu_value; wire [4:0] fpu_fflags;
+  generate if(ENABLE_FPU) begin: g_fpu
+    edge_fpu_alu fpu_alu(
+      .clk(clk),.reset_n(reset_n),
+      .issue_valid(ex_valid&&is_fp_compute&&!fpu_started_q),
+      .issue_ready(fpu_ready),.issue_inst(ex_inst[31:0]),
+      .issue_gpr_src(ex_rs1_value),.issue_legal(fpu_legal),
+      .complete_valid(fpu_done),.complete_gpr_write(fpu_gpr_write),
+      .complete_rd(fpu_rd),.complete_value(fpu_value),
+      .complete_fflags(fpu_fflags),
+      .load_write_valid(ex_valid&&is_fp_load&&lsu_done&&!lsu_error),
+      .load_write_rd(rd),.load_write_value(lsu_value[31:0]),
+      .store_read_rs(ex_inst[24:20]),.store_read_value(fpu_store_value));
+  end else begin: g_no_fpu
+    assign fpu_ready=1'b0; assign fpu_done=1'b0;
+    assign fpu_gpr_write=1'b0; assign fpu_rd=5'b0;
+    assign fpu_value=64'b0; assign fpu_fflags=5'b0;
+    assign fpu_legal=1'b0; assign fpu_store_value=32'b0;
+  end endgenerate
+  wire fpu_start=ex_valid&&is_fp_compute&&!fpu_started_q&&fpu_ready&&fpu_legal;
 
   assign accel_req_valid=ex_valid&&is_accel&&!accel_started_q;
   assign accel_req_inst=ex_inst;
@@ -187,14 +218,19 @@ module edge_rv_lite_core #(
   wire fast_done=ex_valid&&!ex_is_64b&&legal_fast&&!is_muldiv;
   wire sys_done=ex_valid&&!ex_is_64b&&legal_sys&&!is_edge_cache;
   wire ex_done=fast_done||sys_done||(is_muldiv&&mul_result_valid)||
-    (legal_mem&&lsu_done)||accel_done||cache_done||(ex_valid&&!ex_legal);
+    (legal_mem&&lsu_done)||(is_fp_compute&&fpu_done)||accel_done||cache_done||
+    (ex_valid&&!ex_legal);
   wire ex_control=is_jal||is_jalr||is_branch;
   wire redirect=fast_done&&ex_control&&branch_taken;
-  wire [63:0] wb_value=is_accel?accel_resp_value:is_muldiv?mul_result:is_load?lsu_value:
+  wire [63:0] wb_value=is_accel?accel_resp_value:is_fp_compute?fpu_value:
+    is_muldiv?mul_result:is_load?lsu_value:
     is_cycle?cycle_q:is_instret?instret_q:is_hardware_id?
-    {9'd2,EDGE_ASIC_ID[46:32],4'd0,4'd0,EDGE_ASIC_ID[31:0]}:fast_result;
-  wire wb_valid=ex_done&&(rd!=0)&&!is_store&&!is_branch&&!is_ebreak&&ex_legal&&
-                (!is_accel||decoded_writes_gpr);
+    {9'd2,EDGE_ASIC_ID[46:32],(ENABLE_FPU?4'd1:4'd0),4'd0,
+     EDGE_ASIC_ID[31:0]}:fast_result;
+  wire wb_valid=ex_done&&(rd!=0)&&!is_store&&!is_fp_store&&!is_fp_load&&
+                !is_branch&&!is_ebreak&&ex_legal&&
+                (!is_accel||decoded_writes_gpr)&&
+                (!is_fp_compute||fpu_gpr_write);
 
   edge_rv_lite_frontend frontend(.clk(clk),.reset_n(reset_n),
     .imem_req_valid(imem_req_valid),.imem_req_ready(imem_req_ready),
@@ -226,16 +262,18 @@ module edge_rv_lite_core #(
     if(!reset_n) begin
       for(ri=0;ri<32;ri=ri+1) gpr[ri]<=0;
       cycle_q<=0; instret_q<=0; mem_started_q<=0; mul_started_q<=0;
+      fpu_started_q<=0;
       accel_started_q<=0; cache_started_q<=0;
       halted<=0; illegal<=0;
     end else begin
       cycle_q<=cycle_q+1; gpr[0]<=0;
       if(lsu_start&&lsu_ready) mem_started_q<=1;
       if(mul_start&&mul_ready) mul_started_q<=1;
+      if(fpu_start) fpu_started_q<=1;
       if(accel_req_fire) accel_started_q<=1;
       if(cache_req_fire) cache_started_q<=1;
       if(ex_done) begin
-        mem_started_q<=0; mul_started_q<=0; accel_started_q<=0;
+        mem_started_q<=0; mul_started_q<=0; fpu_started_q<=0; accel_started_q<=0;
         cache_started_q<=0;
         if(ex_valid) instret_q<=instret_q+1;
         if(wb_valid) gpr[rd]<=wb_value;
