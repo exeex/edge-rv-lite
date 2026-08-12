@@ -8,7 +8,8 @@ module edge_rv_lite_cached_core #(
   parameter ICACHE_BYTES = 16384,
   parameter DCACHE_BYTES = 16384,
   parameter DTCM_ADDR_WIDTH = 14,
-  parameter ENABLE_DTCM_PORT = 0
+  parameter ENABLE_DTCM_PORT = 0,
+  parameter [46:0] EDGE_ASIC_ID = 47'd0
 ) (
   input  wire                   clk,
   input  wire                   reset_n,
@@ -121,7 +122,8 @@ module edge_rv_lite_cached_core #(
   wire cache_op_complete_valid;
 
   edge_rv_lite_core #(
-    .PC_WIDTH(PC_WIDTH), .DMEM_RESP_FORMATTED(1)
+    .PC_WIDTH(PC_WIDTH), .DMEM_RESP_FORMATTED(1),
+    .EDGE_ASIC_ID(EDGE_ASIC_ID)
   ) core (
     .clk(clk), .reset_n(reset_n),
     .imem_req_valid(core_imem_req_valid),

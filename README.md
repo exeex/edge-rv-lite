@@ -1,5 +1,15 @@
 # edge-rv-lite
 
+## Hardware identification CSR
+
+`edge-rv-lite` implements the read-only custom CSR `0xfc0` locally and reports
+RV core ID 2, FPU version 0, and VPU version 0. The selected product supplies
+the other 47 constant bits through the `EDGE_ASIC_ID` elaboration parameter;
+the implementation adds no runtime identification port or CSR wiring.
+
+The shared `edge_get_hardware_id()` and `edge_decode_hardware_id()` intrinsics
+decode the complete core, product, Tensor-dimension and format description.
+
 `edge-rv-lite` is the minimum-area control-plane alternative to `edge-rv`.
 It preserves the same 32-bit scalar opcode families and the same 64-bit Edge
 accelerator instruction envelope, but deliberately gives up overlap and

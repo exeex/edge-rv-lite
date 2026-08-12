@@ -2,7 +2,8 @@
 // Bootable RV64IM_Zba three-stage core. Variable-latency EX freezes IF/ID.
 module edge_rv_lite_core #(
   parameter PC_WIDTH = 40,
-  parameter DMEM_RESP_FORMATTED = 0
+  parameter DMEM_RESP_FORMATTED = 0,
+  parameter [46:0] EDGE_ASIC_ID = 47'd0
 ) (
   input wire clk, input wire reset_n,
   output wire imem_req_valid, input wire imem_req_ready,
@@ -79,6 +80,8 @@ module edge_rv_lite_core #(
     (ex_inst[19:15]==0);
   wire is_instret=(opc==7'h73)&&(f3==3'b010)&&(ex_inst[31:20]==12'hc02)&&
     (ex_inst[19:15]==0);
+  wire is_hardware_id=(opc==7'h73)&&(f3==3'b010)&&
+    (ex_inst[31:20]==12'hfc0)&&(ex_inst[19:15]==0);
   wire is_ebreak=ex_inst==64'h0000_0000_0010_0073;
   wire is_edge_break=(opc==7'h73)&&(f3==3'b001)&&(rd==5'd0)&&
     (ex_inst[31:20]==12'h7e0);
@@ -101,7 +104,8 @@ module edge_rv_lite_core #(
   wire legal_fast=legal_opimm||legal_op||legal_opimm32||legal_op32||
     is_lui||is_auipc||is_jal||is_jalr||(is_branch&&legal_branch);
   wire legal_mem=(is_load&&legal_load)||(is_store&&legal_store);
-  wire legal_sys=is_cycle||is_instret||is_ebreak||is_edge_break||is_edge_cache;
+  wire legal_sys=is_cycle||is_instret||is_hardware_id||is_ebreak||
+    is_edge_break||is_edge_cache;
   wire [3:0] decoded_class;
   wire decoded_legal, decoded_writes_gpr;
   wire [6:0] decoded_accel_subop;
@@ -187,7 +191,8 @@ module edge_rv_lite_core #(
   wire ex_control=is_jal||is_jalr||is_branch;
   wire redirect=fast_done&&ex_control&&branch_taken;
   wire [63:0] wb_value=is_accel?accel_resp_value:is_muldiv?mul_result:is_load?lsu_value:
-    is_cycle?cycle_q:is_instret?instret_q:fast_result;
+    is_cycle?cycle_q:is_instret?instret_q:is_hardware_id?
+    {9'd2,EDGE_ASIC_ID[46:32],4'd0,4'd0,EDGE_ASIC_ID[31:0]}:fast_result;
   wire wb_valid=ex_done&&(rd!=0)&&!is_store&&!is_branch&&!is_ebreak&&ex_legal&&
                 (!is_accel||decoded_writes_gpr);
 

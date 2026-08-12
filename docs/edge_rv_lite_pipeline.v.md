@@ -1,5 +1,10 @@
 # edge_rv_lite_pipeline
 
+The containing `edge_rv_lite_core` handles the read-only hardware-ID CSR
+`0xfc0` as a local single-cycle system operation. Its core fields are constants
+owned by lite; its product fields come from the elaboration-time
+`EDGE_ASIC_ID` parameter. No runtime ID interface crosses this pipeline.
+
 This is a standard single-issue three-stage pipeline: IF, ID/register-read, and
 EX/writeback. Independent fast operations may occupy all stages concurrently.
 An unfinished EX operation freezes ID and IF; no younger operation can enter a
