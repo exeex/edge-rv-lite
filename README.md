@@ -3,7 +3,8 @@
 ## Hardware identification CSR
 
 `edge-rv-lite` implements the read-only custom CSR `0xfc0` locally and reports
-RV core ID 2, FPU version 0, and VPU version 0. The selected product supplies
+RV core ID 2, VPU version 0, and FPU version 0/1 according to `ENABLE_FPU`.
+The selected product supplies
 the other 47 constant bits through the `EDGE_ASIC_ID` elaboration parameter;
 the implementation adds no runtime identification port or CSR wiring.
 
@@ -140,6 +141,26 @@ positions.
 Arithmetic format suffixes do not select different datapaths. For example,
 `fmul.s`, `fmul.h`, and `fmul.d` ignore `fmt=inst[26:25]` and all execute as
 `fmul.s` on the physical FP32 operands.
+
+### Packed FP4
+
+FP4 uses the NVFP4 finite E2M1 element (`S EE M`, exponent bias 1):
+`+/-0`, `+/-0.5`, `+/-1`, `+/-1.5`, `+/-2`, `+/-3`, `+/-4`, and `+/-6`.
+It has no Inf or NaN encoding. Block scaling is outside this definition and is
+left to WLD/SLD.
+
+`fp4x16_t` is one `uint64_t data` field and remains packed in a GPR; FP4 is not
+loaded into the FPR file through the LSU.
+
+| Instruction | `funct7` | `rs2` | `funct3` | `opcode` | Operation |
+| --- | --- | --- | --- | --- | --- |
+| `fmv.s.xfp4 fd, rs1` | `1111011` | `00000` | `000` | `1010011` | Expand `rs1[3:0]` to FP32 `fd`; ignore `rs1[63:4]` |
+| `fmv.xfp4.s rd, fs1` | `1110011` | `00000` | `000` | `1010011` | RNE FP32 `fs1` to a zero-extended E2M1 nibble in `rd` |
+
+The reverse conversion saturates finite overflow and infinity to `+/-6`,
+preserves signed zero, and maps NaN to positive zero. Software selects an
+element with RV64I shifts before `fmv.s.xfp4`. To build `fp4x16_t`, repeatedly
+shift the packed GPR left by four and OR in the result of `fmv.xfp4.s`.
 
 Enable the FPU when software needs to:
 

@@ -6,7 +6,7 @@ module edge_rv_lite_fpu_tb;
   wire dmem_req_valid,dmem_req_write; wire [63:0] dmem_req_addr,dmem_req_wdata;
   wire [7:0] dmem_req_wstrb; reg dmem_resp_valid=0;
   reg [63:0] dmem_resp_rdata=0; wire halted,illegal;
-  reg saw_store=0;
+  reg saw_fp32_store=0, saw_fp4_store=0;
   edge_rv_lite_core #(.ENABLE_FPU(1)) dut(
     .clk(clk),.reset_n(reset_n),.imem_req_valid(imem_req_valid),
     .imem_req_ready(1'b1),.imem_req_addr(imem_req_addr),
@@ -29,19 +29,30 @@ module edge_rv_lite_fpu_tb;
       4: imem_resp_data<=32'h00402107; // flw f2,4(x0)
       8: imem_resp_data<=32'h002081d3; // fadd.s f3,f1,f2
       12: imem_resp_data<=32'h00302427; // fsw f3,8(x0)
+      16: imem_resp_data<=32'h00f00293; // addi x5,x0,15 (E2M1 -6)
+      20: imem_resp_data<=32'hf60280d3; // fmv.s.xfp4 f1,x5
+      24: imem_resp_data<=32'he6008353; // fmv.xfp4.s x6,f1
+      28: imem_resp_data<=32'h00603823; // sd x6,16(x0)
       default: imem_resp_data<=32'h00100073;
     endcase
     dmem_resp_valid<=dmem_req_valid;
     dmem_resp_rdata<=64'h40000000_3f800000;
     if(dmem_req_valid&&dmem_req_write) begin
-      if(dmem_req_addr!=8||dmem_req_wstrb!=8'h0f||dmem_req_wdata[31:0]!=32'h40400000)
-        $fatal(1,"bad FPU store addr=%h strb=%h data=%h",dmem_req_addr,dmem_req_wstrb,dmem_req_wdata);
-      saw_store<=1;
+      if(dmem_req_addr==8) begin
+        if(dmem_req_wstrb!=8'h0f||dmem_req_wdata[31:0]!=32'h40400000)
+          $fatal(1,"bad FP32 store strb=%h data=%h",dmem_req_wstrb,dmem_req_wdata);
+        saw_fp32_store<=1;
+      end else if(dmem_req_addr==16) begin
+        if(dmem_req_wstrb!=8'hff||dmem_req_wdata!=64'hf)
+          $fatal(1,"bad FP4 GPR store strb=%h data=%h",dmem_req_wstrb,dmem_req_wdata);
+        saw_fp4_store<=1;
+      end else $fatal(1,"unexpected store addr=%h",dmem_req_addr);
     end
   end
   initial begin
     repeat(3) @(posedge clk); reset_n<=1; wait(halted);
-    if(illegal||!saw_store) $fatal(1,"enabled lite FPU did not complete");
+    if(illegal||!saw_fp32_store||!saw_fp4_store)
+      $fatal(1,"enabled lite FPU did not complete");
     $display("EDGE_RV_LITE_FPU TEST PASS"); $finish;
   end
 endmodule
