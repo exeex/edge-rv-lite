@@ -51,10 +51,10 @@ metric; whole-harness cycles include boot and setup work.
 | CoreMark | retired instructions | 616,228 | 616,228 | 1.000x |
 | `tile8x8_stream64tokens` | X30 Tensor window | 534 | 539 | 1.009x |
 | `tile8x8_stream64tokens` | ideal / X30 utilization | 95.88% | 94.99% | -0.89 pp |
-| `matmul64x64_64tokens_tiled_circular` | X30 Tensor window | 4,629 | 4,671 | 1.009x |
-| `matmul64x64_64tokens_tiled_circular` | MAC utilization | 88.49% | 87.69% | -0.80 pp |
-| `matmul64x64_128tokens_tiled_circular` | X30 Tensor window | 8,751 | 8,794 | 1.005x |
-| `matmul64x64_128tokens_tiled_circular` | MAC utilization | 93.61% | 93.15% | -0.46 pp |
+| `matmul64x64_runtime_shape`, 64 tokens | X30 Tensor window | 4,629 | 4,664 | 1.008x |
+| `matmul64x64_runtime_shape`, 64 tokens | MAC utilization | 88.49% | 87.82% | -0.67 pp |
+| `matmul64x64_runtime_shape`, 128 tokens | X30 Tensor window | 8,751 | 8,747 | 1.000x |
+| `matmul64x64_runtime_shape`, 128 tokens | MAC utilization | 93.61% | 93.66% | +0.05 pp |
 
 The Tensor case performs 512 consecutive 8x8 vector steps with one WLD and one
 Tensor start. Its 4096 BF16 output elements are checked after DTCM-to-AXI DMA.
@@ -62,13 +62,15 @@ The five-cycle lite gap is therefore small: serialized scalar issue hurts
 CoreMark substantially, but it does not materially reduce a long Tensor run
 after launch. This case intentionally isolates the Tensor engine.
 
-The two tiled circular cases use exactly the same C++ source on both cores and
-check every 4096- or 8192-element BF16 output in the testbench. The 64-token
-case includes circular weight DMA/WLD; the 128-token case additionally uses
-packed-XY DMA and transposed circular WLD. Lite is 42 cycles (0.91%) slower in
-the former and 43 cycles (0.49%) slower in the latter. The nearly fixed gap
-shows that serialized scalar command issue adds setup cost but does not reduce
-steady Tensor throughput.
+The two runtime-shape cases use one shared C++ implementation on both cores and
+check every 4096- or 8192-element public-contiguous BF16 output. Software reads
+the hardware-ID CSR to derive Tensor rows and columns, packs the public input
+with strided DMA, streams public BF16 weights through packed-XY DMA and
+transposed circular WLD, then scatters the private blocked output back to its
+public layout. The X30 window isolates weight production and Tensor execution;
+input packing and output scatter remain outside it. Lite is 35 cycles slower
+for 64 tokens and 4 cycles faster for 128 tokens, so serialized scalar issue
+does not reduce steady Tensor throughput.
 
 The unchanged standard `bf16_wld_direct_circular.cpp` program is also a lite
 regression. It covers cache clean-by-VA, direct DMA, direct and transposed WLD,

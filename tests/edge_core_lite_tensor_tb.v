@@ -62,18 +62,8 @@ module edge_core_lite_tensor_tb;
 
   function [15:0] matmul_expected_bf16;
     input integer elem_i;
-    integer out_block;
-    integer token;
-    integer out_lane;
-    integer out_col;
-    integer input_elem_i;
     begin
-      out_block = elem_i / 512;
-      token = (elem_i % 512) / 8;
-      out_lane = elem_i % 8;
-      out_col = out_block * 8 + out_lane;
-      input_elem_i = (out_col / 8) * 512 + token * 8 + out_col % 8;
-      case (input_elem_i % 13)
+      case (elem_i % 13)
         0: matmul_expected_bf16 = 16'hc0c0;
         1: matmul_expected_bf16 = 16'hc0a0;
         2: matmul_expected_bf16 = 16'hc080;
