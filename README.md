@@ -51,10 +51,10 @@ metric; whole-harness cycles include boot and setup work.
 | CoreMark | retired instructions | 616,228 | 616,228 | 1.000x |
 | `tile8x8_stream64tokens` | X30 Tensor window | 534 | 539 | 1.009x |
 | `tile8x8_stream64tokens` | ideal / X30 utilization | 95.88% | 94.99% | -0.89 pp |
-| `matmul64x64_runtime_shape`, 64 tokens | X30 Tensor window | 4,629 | 4,664 | 1.008x |
-| `matmul64x64_runtime_shape`, 64 tokens | MAC utilization | 88.49% | 87.82% | -0.67 pp |
-| `matmul64x64_runtime_shape`, 128 tokens | X30 Tensor window | 8,751 | 8,747 | 1.000x |
-| `matmul64x64_runtime_shape`, 128 tokens | MAC utilization | 93.61% | 93.66% | +0.05 pp |
+| `matmul64x64_runtime_shape`, 64 tokens | X30 Tensor window | 4,660 | 4,699 | 1.008x |
+| `matmul64x64_runtime_shape`, 64 tokens | MAC utilization | 87.90% | 87.17% | -0.73 pp |
+| `matmul64x64_runtime_shape`, 128 tokens | X30 Tensor window | 8,772 | 8,785 | 1.001x |
+| `matmul64x64_runtime_shape`, 128 tokens | MAC utilization | 93.39% | 93.25% | -0.14 pp |
 
 The Tensor case performs 512 consecutive 8x8 vector steps with one WLD and one
 Tensor start. Its 4096 BF16 output elements are checked after DTCM-to-AXI DMA.
@@ -68,8 +68,8 @@ the hardware-ID CSR to derive Tensor rows and columns, packs the public input
 with strided DMA, streams public BF16 weights through packed-XY DMA and
 transposed circular WLD, then scatters the private blocked output back to its
 public layout. The X30 window isolates weight production and Tensor execution;
-input packing and output scatter remain outside it. Lite is 35 cycles slower
-for 64 tokens and 4 cycles faster for 128 tokens, so serialized scalar issue
+input packing and output scatter remain outside it. Lite is 39 cycles slower
+for 64 tokens and 13 cycles slower for 128 tokens, so serialized scalar issue
 does not reduce steady Tensor throughput.
 
 The unchanged standard `bf16_wld_direct_circular.cpp` program is also a lite

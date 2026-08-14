@@ -332,7 +332,7 @@ function(edge_lite_add_tensor_benchmark name source words check_arg)
             --linker ${CMAKE_CURRENT_LIST_DIR}/tests/rv64im_lite_flat.ld
             --size 0x200000
     DEPENDS ${EDGE_REPO_ROOT}/tests/software/tensor/${source}
-            ${EDGE_REPO_ROOT}/tests/software/tensor/matmul64x64_runtime_shape.hpp
+            ${EDGE_REPO_ROOT}/tests/software/tensor/matmul.hpp
             ${EDGE_REPO_ROOT}/tests/software/include/edge_intrinsic.hpp
             ${CMAKE_CURRENT_LIST_DIR}/tests/rv64im_lite_crt0.s
             ${CMAKE_CURRENT_LIST_DIR}/tests/rv64im_lite_flat.ld)
@@ -349,10 +349,10 @@ endfunction()
 
 edge_lite_add_tensor_benchmark(
   edge_rv_lite_matmul64x64_64tokens_circular
-  matmul64x64_runtime_shape_64tokens.cpp 1123 check_matmul64)
+  matmul64x64_runtime_shape_64tokens.cpp 1111 check_matmul64)
 edge_lite_add_tensor_benchmark(
   edge_rv_lite_matmul64x64_128tokens_circular
-  matmul64x64_runtime_shape_128tokens.cpp 1635 check_matmul128)
+  matmul64x64_runtime_shape_128tokens.cpp 1623 check_matmul128)
 
 add_custom_command(
   OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/cached_coremark_obj/Vedge_rv_lite_cached_coremark_tb

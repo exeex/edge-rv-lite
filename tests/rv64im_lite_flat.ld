@@ -9,6 +9,9 @@ MEMORY
 __edge_dtcm_base = 0x40000000;
 __edge_dtcm_size = 0x00020000;
 __edge_dtcm_mask = 0xfffffffffffe0000;
+__edge_stack_size = 0x00010000;
+__edge_stack_top = ORIGIN(ROM) + LENGTH(ROM);
+__edge_stack_bottom = __edge_stack_top - __edge_stack_size;
 
 SECTIONS
 {
@@ -23,4 +26,7 @@ SECTIONS
         *(.sbss .sbss.*) *(.bss .bss.*) *(COMMON)
         __bss_end = .;
     } > ROM
+
+    ASSERT(__bss_end <= __edge_stack_bottom,
+           "ROM data overlaps the reserved software stack")
 }
