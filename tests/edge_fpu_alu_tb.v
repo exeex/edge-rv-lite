@@ -3,6 +3,7 @@ module edge_fpu_alu_tb;
   reg clk=0, reset_n=0, issue_valid=0, load_write_valid=0;
   reg [31:0] issue_inst=0, load_write_value=0;
   reg [63:0] issue_gpr_src=0;
+  reg [2:0] issue_frm=0;
   reg [4:0] load_write_rd=0, store_read_rs=0;
   wire issue_ready, issue_legal, complete_valid, complete_gpr_write;
   wire [4:0] complete_rd, complete_fflags;
@@ -43,6 +44,18 @@ module edge_fpu_alu_tb;
       $fatal(1,"bad fp4 encode value=%h got=%h expected=%h",
              value,complete_value,nibble);
   end endtask
+  task check_fadd_round(input [2:0] encoded_rm, input [2:0] frm,
+                        input [31:0] expected); begin
+    load_fpr(1,32'h3f800000); // 1.0
+    load_fpr(2,32'h33800000); // 2^-24: halfway between adjacent values
+    @(negedge clk); issue_frm=frm;
+    issue_inst=32'h002081d3|({29'd0,encoded_rm}<<12); issue_valid=1;
+    #1; if(!issue_ready||!issue_legal) $fatal(1,"rounding mode rejected");
+    @(negedge clk); issue_valid=0; wait(complete_valid); #1;
+    if(complete_value[31:0]!=expected||complete_fflags!=5'b00001)
+      $fatal(1,"rounding rm=%0d frm=%0d value=%h flags=%h",
+             encoded_rm,frm,complete_value,complete_fflags);
+  end endtask
   integer n;
   initial begin
     repeat(2) @(negedge clk); reset_n=1;
@@ -56,6 +69,16 @@ module edge_fpu_alu_tb;
     store_read_rs=3; #1;
     if(store_read_value!=32'h40400000)
       $fatal(1,"bad FPR store read %h",store_read_value);
+    check_fadd_round(3'b000,3'b000,32'h3f800000); // RNE
+    check_fadd_round(3'b001,3'b000,32'h3f800000); // RTZ
+    check_fadd_round(3'b010,3'b000,32'h3f800000); // RDN
+    check_fadd_round(3'b011,3'b000,32'h3f800001); // RUP
+    check_fadd_round(3'b100,3'b000,32'h3f800001); // RMM
+    check_fadd_round(3'b111,3'b011,32'h3f800001); // dynamic RUP
+    @(negedge clk); issue_frm=3'b101;
+    issue_inst=32'h0020f1d3; issue_valid=1; #1;
+    if(issue_legal) $fatal(1,"dynamic RM accepted reserved frm");
+    issue_valid=0; issue_frm=0;
     for(n=0;n<16;n=n+1) decode_fp4(n[3:0]);
     encode_fp4(32'h3e800000,4'h0); // +0.25 tie -> even +0
     encode_fp4(32'h3f400000,4'h2); // +0.75 tie -> even +1

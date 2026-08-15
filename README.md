@@ -134,6 +134,13 @@ loads convert to FP32, all arithmetic uses the FP32 ALU, and stores convert from
 FP32. This lets bare-metal C++ accept accidental `double` code (`1.0` instead
 of `1.0f`) without soft-float helpers, but does not provide FP64 accuracy.
 
+The enabled profile implements architectural `fflags` (`0x001`), `frm`
+(`0x002`), and `fcsr` (`0x003`) CSRs. FPU completions sticky-OR
+`NV,DZ,OF,UF,NX` into `fflags`; CSR writes can clear or replace them. Static
+RNE, RTZ, RDN, RUP, and RMM are supported. An instruction with dynamic
+`rm=111` uses `frm`, and traps as illegal when `frm` contains a reserved value.
+With `ENABLE_FPU=0`, these FP CSRs and all FP operations remain illegal.
+
 FP memory instructions use I-type loads (`opcode=0000111`) and S-type stores
 (`opcode=0100111`). `imm[11:0]`, `rs1`, and `rd`/`rs2` retain their standard
 positions.

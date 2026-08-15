@@ -134,6 +134,18 @@ add_test(NAME edge_rv_lite_fpu
   COMMAND ${CMAKE_CURRENT_BINARY_DIR}/lite_fpu_obj/Vedge_rv_lite_fpu_tb)
 
 add_custom_command(
+  OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/lite_fcsr_obj/Vedge_rv_lite_fcsr_tb
+  COMMAND ${VERILATOR} --binary --timing -Wno-fatal
+          --top-module edge_rv_lite_fcsr_tb
+          --Mdir ${CMAKE_CURRENT_BINARY_DIR}/lite_fcsr_obj
+          ${CORE_RTL} ${CMAKE_CURRENT_LIST_DIR}/tests/edge_rv_lite_fcsr_tb.v
+  DEPENDS ${CORE_RTL} ${CMAKE_CURRENT_LIST_DIR}/tests/edge_rv_lite_fcsr_tb.v)
+add_custom_target(edge_rv_lite_fcsr_vvp
+  DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/lite_fcsr_obj/Vedge_rv_lite_fcsr_tb)
+add_test(NAME edge_rv_lite_fcsr
+  COMMAND ${CMAKE_CURRENT_BINARY_DIR}/lite_fcsr_obj/Vedge_rv_lite_fcsr_tb)
+
+add_custom_command(
   OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/coremark_obj/Vedge_rv_lite_coremark_tb
   COMMAND ${VERILATOR} --binary --timing -Wno-fatal
           --top-module edge_rv_lite_coremark_tb

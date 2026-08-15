@@ -37,6 +37,8 @@ module edge_rv_lite_core #(
     A_ZBA=9, A_ZBA_UW=10;
   reg [63:0] gpr [0:31];
   reg [63:0] cycle_q, instret_q;
+  reg [4:0] fflags_q;
+  reg [2:0] frm_q;
   reg mem_started_q, mul_started_q, fpu_started_q, accel_started_q;
   reg cache_started_q, icache_invalidate_started_q;
   integer ri;
@@ -95,6 +97,10 @@ module edge_rv_lite_core #(
     (ex_inst[19:15]==0);
   wire is_hardware_id=(opc==7'h73)&&(f3==3'b010)&&
     (ex_inst[31:20]==12'hfc0)&&(ex_inst[19:15]==0);
+  wire is_csr_op=(opc==7'h73)&&(f3[1:0]!=2'b00);
+  wire is_fp_csr=ENABLE_FPU&&is_csr_op&&
+    ((ex_inst[31:20]==12'h001)||(ex_inst[31:20]==12'h002)||
+     (ex_inst[31:20]==12'h003));
   wire is_ebreak=ex_inst==64'h0000_0000_0010_0073;
   wire is_edge_break=(opc==7'h73)&&(f3==3'b001)&&(rd==5'd0)&&
     (ex_inst[31:20]==12'h7e0);
@@ -105,7 +111,7 @@ module edge_rv_lite_core #(
   wire is_fence=(decoded_class==4'd6)&&(opc==7'h0f);
   wire is_fence_i=is_fence&&(f3==3'b001);
   wire is_supported_system=is_cycle||is_instret||is_hardware_id||is_ebreak||
-    is_edge_break||is_fence;
+    is_edge_break||is_fp_csr||is_fence;
   wire is_accel=ex_is_64b&&(decoded_class==4'd8);
   wire fpu_legal;
   wire ex_supported=is_accel||is_fast_class||is_muldiv||is_int_mem||is_fp_mem||
@@ -182,7 +188,8 @@ module edge_rv_lite_core #(
       .clk(clk),.reset_n(reset_n),
       .issue_valid(ex_issue_ok&&is_fp_compute&&!fpu_started_q),
       .issue_ready(fpu_ready),.issue_inst(ex_inst[31:0]),
-      .issue_gpr_src(ex_rs1_value),.issue_legal(fpu_legal),
+      .issue_gpr_src(ex_rs1_value),.issue_frm(frm_q),
+      .issue_legal(fpu_legal),
       .complete_valid(fpu_done),.complete_gpr_write(fpu_gpr_write),
       .complete_rd(fpu_rd),.complete_value(fpu_value),
       .complete_fflags(fpu_fflags),
@@ -234,9 +241,22 @@ module edge_rv_lite_core #(
     ex_pc+{{(PC_WIDTH-3){1'b0}},3'd4}:branch_target;
   wire [63:0] wb_value=is_accel?accel_resp_value:is_fp_compute?fpu_value:
     is_muldiv?mul_result:is_load?lsu_value:
-    is_cycle?cycle_q:is_instret?instret_q:is_hardware_id?
+    is_cycle?cycle_q:is_instret?instret_q:is_fp_csr?
+    (ex_inst[31:20]==12'h001 ? {59'd0,fflags_q} :
+     ex_inst[31:20]==12'h002 ? {61'd0,frm_q} : {56'd0,frm_q,fflags_q}):
+    is_hardware_id?
     {9'd2,EDGE_ASIC_ID[46:32],(ENABLE_FPU?4'd1:4'd0),4'd0,
      EDGE_ASIC_ID[31:0]}:fast_result;
+  wire [63:0] fp_csr_source=f3[2]?{59'd0,ex_inst[19:15]}:ex_rs1_value;
+  wire [7:0] fp_csr_old=(ex_inst[31:20]==12'h001)?
+                        {3'd0,fflags_q}:
+                        (ex_inst[31:20]==12'h002)?
+                        {5'd0,frm_q}:{frm_q,fflags_q};
+  wire [7:0] fp_csr_new=(f3[1:0]==2'b01)?fp_csr_source[7:0]:
+                         (f3[1:0]==2'b10)?
+                         (fp_csr_old|fp_csr_source[7:0]):
+                         (fp_csr_old&~fp_csr_source[7:0]);
+  wire fp_csr_write=(f3[1:0]==2'b01)||(ex_inst[19:15]!=5'd0);
   wire wb_valid=ex_done&&!halted&&!ex_faulting&&(rd!=0)&&!is_store&&!is_fp_store&&
                 !is_fp_load&&!is_branch&&!is_ebreak&&
                 (!is_accel||decoded_writes_gpr)&&
@@ -276,6 +296,7 @@ module edge_rv_lite_core #(
     if(!reset_n) begin
       for(ri=0;ri<32;ri=ri+1) gpr[ri]<=0;
       cycle_q<=0; instret_q<=0; mem_started_q<=0; mul_started_q<=0;
+      fflags_q<=0; frm_q<=0;
       fpu_started_q<=0;
       accel_started_q<=0; cache_started_q<=0;
       icache_invalidate_started_q<=0;
@@ -294,6 +315,18 @@ module edge_rv_lite_core #(
         icache_invalidate_started_q<=0;
         if(ex_valid&&!ex_faulting) instret_q<=instret_q+1;
         if(wb_valid) gpr[rd]<=wb_value;
+        if(!ex_faulting&&is_fp_csr&&fp_csr_write) begin
+          if(ex_inst[31:20]==12'h001)
+            fflags_q<=fp_csr_new[4:0];
+          else if(ex_inst[31:20]==12'h002)
+            frm_q<=fp_csr_new[2:0];
+          else begin
+            fflags_q<=fp_csr_new[4:0];
+            frm_q<=fp_csr_new[7:5];
+          end
+        end
+        if(!ex_faulting&&is_fp_compute&&fpu_done)
+          fflags_q<=fflags_q|fpu_fflags;
         if(!ex_faulting&&(is_ebreak||is_edge_break)) halted<=1;
         if(!ex_faulting&&is_edge_break) gpr[31]<=ex_rs1_value;
         if(ex_faulting) begin illegal<=1; halted<=1; end
