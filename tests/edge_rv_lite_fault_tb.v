@@ -5,6 +5,9 @@ module edge_rv_lite_fault_tb;
   localparam integer FETCH_STORE_FAULT = 2;
   localparam integer LOAD_RESP_FAULT = 3;
   localparam integer ACCEL_RESP_FAULT = 4;
+  localparam integer RESERVED_OP32_M = 5;
+  localparam integer CACHE_INDEX_NONZERO_RS1 = 6;
+  localparam integer CACHE_NONZERO_FUNCT7 = 7;
 
   reg clk = 0;
   always #5 clk = ~clk;
@@ -12,6 +15,7 @@ module edge_rv_lite_fault_tb;
   integer test_case = 0;
   integer dmem_requests = 0;
   integer accel_requests = 0;
+  integer cache_requests = 0;
   integer timeout;
 
   wire imem_req_valid;
@@ -23,6 +27,7 @@ module edge_rv_lite_fault_tb;
   reg dmem_resp_valid = 0;
   reg dmem_resp_error = 0;
   wire accel_req_valid;
+  wire cache_op_valid;
   reg accel_resp_valid = 0;
   reg accel_resp_error = 0;
   wire halted, illegal;
@@ -38,7 +43,7 @@ module edge_rv_lite_fault_tb;
     .dmem_req_wstrb(), .dmem_req_size(), .dmem_req_signed(),
     .dmem_resp_valid(dmem_resp_valid), .dmem_resp_error(dmem_resp_error),
     .dmem_resp_rdata(64'hfeed_face_dead_beef),
-    .cache_op_valid(), .cache_op_ready(1'b1), .cache_op_is_va(),
+    .cache_op_valid(cache_op_valid), .cache_op_ready(1'b1), .cache_op_is_va(),
     .cache_op_kind(), .cache_op_addr(), .cache_op_complete_valid(1'b0),
     .accel_req_valid(accel_req_valid), .accel_req_ready(1'b1),
     .accel_req_inst(), .accel_req_src0(), .accel_req_src1(),
@@ -71,6 +76,18 @@ module edge_rv_lite_fault_tb;
           default: imem_resp_data <= 32'h0010_0073;
         endcase
       end
+      RESERVED_OP32_M: begin
+        // funct7=1/funct3=1 is reserved in RV64 OP-32 (not MULW/DIVW/REMW).
+        imem_resp_data <= 32'h0200_12bb;
+      end
+      CACHE_INDEX_NONZERO_RS1: begin
+        // Index cache operations require rs1=x0.
+        imem_resp_data <= 32'h0010_800b;
+      end
+      CACHE_NONZERO_FUNCT7: begin
+        // Cache operations reserve every nonzero funct7.
+        imem_resp_data <= 32'h0210_000b;
+      end
       default: imem_resp_data <= 32'h0010_0073;
     endcase
 
@@ -81,6 +98,7 @@ module edge_rv_lite_fault_tb;
     accel_resp_valid <= accel_req_valid;
     accel_resp_error <= accel_req_valid && test_case == ACCEL_RESP_FAULT;
     if (accel_req_valid) accel_requests <= accel_requests + 1;
+    if (cache_op_valid) cache_requests <= cache_requests + 1;
   end
 
   task start_case;
@@ -90,6 +108,7 @@ module edge_rv_lite_fault_tb;
       test_case = selected_case;
       dmem_requests = 0;
       accel_requests = 0;
+      cache_requests = 0;
       imem_resp_valid = 0;
       imem_resp_error = 0;
       dmem_resp_valid = 0;
@@ -125,7 +144,14 @@ module edge_rv_lite_fault_tb;
     start_case(ACCEL_RESP_FAULT);
     if (accel_requests != 1)
       $fatal(1, "errored accelerator request count=%0d", accel_requests);
-    $display("TEST PASS: faulting instructions have no side effects or retire");
+    start_case(RESERVED_OP32_M);
+    start_case(CACHE_INDEX_NONZERO_RS1);
+    if (cache_requests != 0)
+      $fatal(1, "invalid cache index op issued %0d requests", cache_requests);
+    start_case(CACHE_NONZERO_FUNCT7);
+    if (cache_requests != 0)
+      $fatal(1, "invalid cache funct7 issued %0d requests", cache_requests);
+    $display("TEST PASS: faults and reserved scalar/cache encodings stop cleanly");
     $finish;
   end
 endmodule

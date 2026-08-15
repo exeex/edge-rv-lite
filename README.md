@@ -106,10 +106,14 @@ the better choice when scalar preparation must overlap accelerator work.
 
 ## Decode compatibility
 
-`edge_rv_lite_decode.v` mirrors the opcode families accepted by the maintained
-`edge-rv` scalar pipe: RV64I, RV64M, Zba, Edge FP32/low-precision load-store,
-CSR/system/fence, Edge cache/DMA control, and the 64-bit vector/tensor/DMA/
-ACTU/CMPU/get-CSR envelope selected by the `7'h3f` length marker.
+`edge_rv_lite_decode.v` is a compatibility wrapper around the shared
+`edge_instruction_classifier`; it does not own a second legality table. ID
+classifies once and carries the class, legality, and GPR-write metadata into
+EX. The shared classifier covers RV64I, RV64M, Zba, Edge FP32/low-precision
+load-store, CSR/system/fence, Edge cache/DMA control, and the 64-bit
+vector/tensor/DMA/ACTU/CMPU/get-CSR envelope selected by the `7'h3f` length
+marker. Lite applies only product capability checks for units it actually
+implements.
 
 The ALU, branch, MUL/DIV and FPU RTL is not forked: the lite filelist references
 the implementations in `../edge-rv` directly. Lite owns only predecode/control,

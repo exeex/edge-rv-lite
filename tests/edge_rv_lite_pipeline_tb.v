@@ -8,9 +8,13 @@ module edge_rv_lite_pipeline_tb;
   wire id_error;
   reg [4:0] id_rs1 = 0, id_rs2 = 0;
   reg [63:0] id_rs1_raw = 0, id_rs2_raw = 0;
+  reg [3:0] id_op_class = 0;
+  reg id_legal = 1, id_writes_gpr = 0;
   wire ex_valid; wire [39:0] ex_pc; wire [63:0] ex_inst; wire ex_is_64b;
   wire ex_error;
   wire [63:0] ex_rs1_value, ex_rs2_value;
+  wire [3:0] ex_op_class;
+  wire ex_legal, ex_writes_gpr;
   reg ex_done = 1, ex_write_valid = 0, ex_redirect_valid = 0;
   reg [4:0] ex_write_rd = 0; reg [63:0] ex_write_value = 0;
   edge_rv_lite_pipeline dut(.*);
@@ -59,12 +63,14 @@ module edge_rv_lite_pipeline_tb;
 
     // Width metadata travels with an Edge64 instruction.
     fetch_pc <= 40'h100; fetch_inst <= 64'h1234_5678_0000_003f;
-    fetch_is_64b <= 1; fetch_valid <= 1;
+    fetch_is_64b <= 1; fetch_valid <= 1; id_op_class <= 4'd8;
+    id_legal <= 1; id_writes_gpr <= 1;
     @(posedge clk); fetch_valid <= 0; fetch_is_64b <= 0;
     @(posedge clk);
-    if (!ex_valid || !ex_is_64b || ex_inst != 64'h1234_5678_0000_003f)
-      begin $display("Edge64 metadata lost"); $finish; end
-    $display("TEST PASS: overlap, forwarding, EX freeze, redirect, Edge64");
+    if (!ex_valid || !ex_is_64b || ex_inst != 64'h1234_5678_0000_003f ||
+        ex_op_class != 4'd8 || !ex_legal || !ex_writes_gpr)
+      begin $display("Edge64 decode metadata lost"); $finish; end
+    $display("TEST PASS: overlap, forwarding, EX freeze, decode metadata");
     $finish;
   end
 endmodule

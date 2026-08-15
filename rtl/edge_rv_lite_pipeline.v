@@ -24,6 +24,9 @@ module edge_rv_lite_pipeline #(
   input  wire [4:0]             id_rs2,
   input  wire [VALUE_WIDTH-1:0] id_rs1_raw,
   input  wire [VALUE_WIDTH-1:0] id_rs2_raw,
+  input  wire [3:0]             id_op_class,
+  input  wire                   id_legal,
+  input  wire                   id_writes_gpr,
 
   output wire                   ex_valid,
   output wire [PC_WIDTH-1:0]    ex_pc,
@@ -32,6 +35,9 @@ module edge_rv_lite_pipeline #(
   output wire                   ex_error,
   output wire [VALUE_WIDTH-1:0] ex_rs1_value,
   output wire [VALUE_WIDTH-1:0] ex_rs2_value,
+  output wire [3:0]             ex_op_class,
+  output wire                   ex_legal,
+  output wire                   ex_writes_gpr,
   input  wire                   ex_done,
   input  wire                   ex_write_valid,
   input  wire [4:0]             ex_write_rd,
@@ -50,6 +56,9 @@ module edge_rv_lite_pipeline #(
   reg ex_error_q;
   reg [VALUE_WIDTH-1:0] ex_rs1_q;
   reg [VALUE_WIDTH-1:0] ex_rs2_q;
+  reg [3:0] ex_op_class_q;
+  reg ex_legal_q;
+  reg ex_writes_gpr_q;
 
   wire ex_blocked = ex_valid_q && !ex_done;
   wire id_can_advance = !ex_blocked;
@@ -71,6 +80,9 @@ module edge_rv_lite_pipeline #(
   assign ex_error = ex_error_q;
   assign ex_rs1_value = ex_rs1_q;
   assign ex_rs2_value = ex_rs2_q;
+  assign ex_op_class = ex_op_class_q;
+  assign ex_legal = ex_legal_q;
+  assign ex_writes_gpr = ex_writes_gpr_q;
 
   always @(posedge clk or negedge reset_n) begin
     if (!reset_n) begin
@@ -86,6 +98,9 @@ module edge_rv_lite_pipeline #(
       ex_error_q <= 1'b0;
       ex_rs1_q <= {VALUE_WIDTH{1'b0}};
       ex_rs2_q <= {VALUE_WIDTH{1'b0}};
+      ex_op_class_q <= 4'd15;
+      ex_legal_q <= 1'b0;
+      ex_writes_gpr_q <= 1'b0;
     end else if (ex_redirect_valid) begin
       // The resolving EX instruction completes; all younger ID/IF work dies.
       id_valid_q <= 1'b0;
@@ -98,6 +113,9 @@ module edge_rv_lite_pipeline #(
       ex_error_q <= id_error_q;
       ex_rs1_q <= forward_rs1 ? ex_write_value : id_rs1_raw;
       ex_rs2_q <= forward_rs2 ? ex_write_value : id_rs2_raw;
+      ex_op_class_q <= id_op_class;
+      ex_legal_q <= id_legal;
+      ex_writes_gpr_q <= id_writes_gpr;
       id_valid_q <= fetch_valid && fetch_ready;
       if (fetch_valid && fetch_ready) begin
         id_pc_q <= fetch_pc;

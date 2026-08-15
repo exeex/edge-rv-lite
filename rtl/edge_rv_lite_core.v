@@ -49,11 +49,14 @@ module edge_rv_lite_core #(
   wire [63:0] ex_rs1_value, ex_rs2_value;
   wire [4:0] id_scalar_rs1=id_inst[19:15], id_scalar_rs2=id_inst[24:20];
   wire [3:0] id_decoded_class;
+  wire id_decoded_legal;
+  wire id_decoded_writes_gpr;
   wire id_decoded_needs_capture;
   wire [4:0] id_decoded_capture_src_gpr;
   edge_rv_lite_decode id_decode(
     .inst(id_inst), .inst_is_64b(id_is_64b), .op_class(id_decoded_class),
-    .legal(), .rd(), .rs1(), .rs2(), .writes_gpr(), .accel_subop(),
+    .legal(id_decoded_legal), .rd(), .rs1(), .rs2(),
+    .writes_gpr(id_decoded_writes_gpr), .accel_subop(),
     .accel_needs_capture(id_decoded_needs_capture),
     .accel_capture_src_gpr(id_decoded_capture_src_gpr));
   wire id_is_accel=id_is_64b&&(id_decoded_class==4'd8);
@@ -62,6 +65,8 @@ module edge_rv_lite_core #(
     (id_decoded_needs_capture ? id_decoded_capture_src_gpr:5'd0):id_scalar_rs2;
   wire [63:0] id_rs1_raw=id_rs1==0 ? 0 : gpr[id_rs1];
   wire [63:0] id_rs2_raw=id_rs2==0 ? 0 : gpr[id_rs2];
+  wire [3:0] decoded_class;
+  wire decoded_legal, decoded_writes_gpr;
 
   wire [6:0] opc=ex_inst[6:0]; wire [2:0] f3=ex_inst[14:12];
   wire [6:0] f7=ex_inst[31:25]; wire [4:0] rd=ex_inst[11:7];
@@ -75,7 +80,7 @@ module edge_rv_lite_core #(
   wire is_fp_store=(opc==7'h27)&&(f3==3'b010);
   wire is_fp_compute=(opc==7'h53)||(opc==7'h43)||(opc==7'h47)||
                      (opc==7'h4b)||(opc==7'h4f);
-  wire is_muldiv=(is_op||is_op32)&&(f7==7'b0000001);
+  wire is_muldiv=decoded_class==4'd4;
   wire is_zba=is_op&&(f7==7'b0010000)&&
     ((f3==2)||(f3==4)||(f3==6));
   wire is_zba_uw=is_op32&&(((f7==7'b0000100)&&(f3==0))||
@@ -90,41 +95,19 @@ module edge_rv_lite_core #(
   wire is_ebreak=ex_inst==64'h0000_0000_0010_0073;
   wire is_edge_break=(opc==7'h73)&&(f3==3'b001)&&(rd==5'd0)&&
     (ex_inst[31:20]==12'h7e0);
-  wire is_edge_cache=(opc==7'h0b)&&(rd==5'd0)&&
-    ((f3==3'b000)||(f3==3'b001))&&
-    (ex_inst[24:22]=={2'b00,f3[0]})&&(ex_inst[21:20]!=2'b00);
-  wire legal_branch=(f3==0)||(f3==1)||(f3>=4);
-  wire legal_load=f3!=7;
-  wire legal_store=f3<=3;
-  wire legal_opimm=is_opimm&&(((f3!=1)&&(f3!=5))||
-    ((f3==1)&&(ex_inst[31:26]==0))||
-    ((f3==5)&&((ex_inst[31:26]==0)||(ex_inst[31:26]==6'b010000))));
-  wire legal_op=is_op&&(is_muldiv||is_zba||(f7==0)||
-    ((f7==7'b0100000)&&((f3==0)||(f3==5))));
-  wire legal_opimm32=is_opimm32&&((f3==0)||is_slli_uw||
-    ((f3==1)&&(f7==0))||((f3==5)&&((f7==0)||(f7==7'b0100000))));
-  wire legal_op32=is_op32&&(is_muldiv||is_zba_uw||
-    ((f3==0)&&((f7==0)||(f7==7'b0100000)))||
-    ((f3==1)&&(f7==0))||((f3==5)&&((f7==0)||(f7==7'b0100000))));
-  wire legal_fast=legal_opimm||legal_op||legal_opimm32||legal_op32||
-    is_lui||is_auipc||is_jal||is_jalr||(is_branch&&legal_branch);
-  wire legal_mem=(is_load&&legal_load)||(is_store&&legal_store)||
-                 (ENABLE_FPU&&(is_fp_load||is_fp_store));
-  wire legal_sys=is_cycle||is_instret||is_hardware_id||is_ebreak||
-    is_edge_break||is_edge_cache;
-  wire [3:0] decoded_class;
-  wire decoded_legal, decoded_writes_gpr;
-  wire [6:0] decoded_accel_subop;
-  edge_rv_lite_decode decode(
-    .inst(ex_inst), .inst_is_64b(ex_is_64b), .op_class(decoded_class),
-    .legal(decoded_legal), .rd(), .rs1(), .rs2(),
-    .writes_gpr(decoded_writes_gpr), .accel_subop(decoded_accel_subop),
-    .accel_needs_capture(), .accel_capture_src_gpr());
+  wire is_edge_cache=(decoded_class==4'd7)&&(opc==7'h0b);
+  wire is_fast_class=(decoded_class==4'd0)||(decoded_class==4'd1);
+  wire is_int_mem=(decoded_class==4'd2)||(decoded_class==4'd3);
+  wire is_fp_mem=ENABLE_FPU&&(is_fp_load||is_fp_store);
+  wire is_fence=(decoded_class==4'd6)&&(opc==7'h0f);
+  wire is_supported_system=is_cycle||is_instret||is_hardware_id||is_ebreak||
+    is_edge_break||is_fence;
   wire is_accel=ex_is_64b&&(decoded_class==4'd8);
   wire fpu_legal;
-  wire ex_legal=is_accel ? decoded_legal :
-                (!ex_is_64b&&(legal_fast||legal_mem||legal_sys||
-                              (ENABLE_FPU&&is_fp_compute&&fpu_legal)));
+  wire ex_supported=is_accel||is_fast_class||is_muldiv||is_int_mem||is_fp_mem||
+    is_supported_system||is_edge_cache||
+    (ENABLE_FPU&&is_fp_compute&&fpu_legal);
+  wire ex_legal=decoded_legal&&ex_supported;
   wire ex_issue_ok=ex_valid&&!halted&&!ex_error&&ex_legal;
 
   wire [11:0] i12=ex_inst[31:20];
@@ -168,7 +151,7 @@ module edge_rv_lite_core #(
     .result_valid(mul_result_valid),.result_value(mul_result),.busy(mul_busy));
 
   wire lsu_ready,lsu_done,lsu_error,lsu_busy; wire [63:0] lsu_value;
-  wire lsu_start=ex_issue_ok&&legal_mem&&!mem_started_q;
+  wire lsu_start=ex_issue_ok&&(is_int_mem||is_fp_mem)&&!mem_started_q;
   wire [31:0] fpu_store_value;
   edge_rv_lite_lsu #(.MEM_RESP_FORMATTED(DMEM_RESP_FORMATTED)) lsu(
     .clk(clk),.reset_n(reset_n),.op_valid(lsu_start),
@@ -216,13 +199,14 @@ module edge_rv_lite_core #(
   assign cache_op_addr=ex_rs1_value;
   wire cache_req_fire=cache_op_valid&&cache_op_ready;
   wire cache_done=is_edge_cache&&cache_started_q&&cache_op_complete_valid;
-  wire fast_done=ex_issue_ok&&!ex_is_64b&&legal_fast&&!is_muldiv;
-  wire sys_done=ex_issue_ok&&!ex_is_64b&&legal_sys&&!is_edge_cache;
+  wire fast_done=ex_issue_ok&&is_fast_class;
+  wire sys_done=ex_issue_ok&&is_supported_system;
   wire ex_done=fast_done||sys_done||(is_muldiv&&mul_result_valid)||
-    (legal_mem&&lsu_done)||(is_fp_compute&&fpu_done)||accel_done||cache_done||
+    ((is_int_mem||is_fp_mem)&&lsu_done)||(is_fp_compute&&fpu_done)||
+    accel_done||cache_done||
     (ex_valid&&(ex_error||!ex_legal));
   wire ex_faulting=ex_error||!ex_legal||
-    (legal_mem&&lsu_done&&lsu_error)||
+    ((is_int_mem||is_fp_mem)&&lsu_done&&lsu_error)||
     (is_accel&&accel_done&&accel_resp_error);
   wire terminal_complete=ex_done&&
     (ex_faulting||is_ebreak||is_edge_break);
@@ -259,8 +243,12 @@ module edge_rv_lite_core #(
     .id_valid(id_valid),.id_pc(id_pc), .id_inst(id_inst),
     .id_is_64b(id_is_64b),.id_error(id_error),.id_rs1(id_rs1),.id_rs2(id_rs2),
     .id_rs1_raw(id_rs1_raw),.id_rs2_raw(id_rs2_raw),.ex_valid(ex_valid),
+    .id_op_class(id_decoded_class),.id_legal(id_decoded_legal),
+    .id_writes_gpr(id_decoded_writes_gpr),
     .ex_pc(ex_pc),.ex_inst(ex_inst),.ex_is_64b(ex_is_64b),.ex_error(ex_error),
     .ex_rs1_value(ex_rs1_value),.ex_rs2_value(ex_rs2_value),.ex_done(ex_done),
+    .ex_op_class(decoded_class),.ex_legal(decoded_legal),
+    .ex_writes_gpr(decoded_writes_gpr),
     .ex_write_valid(wb_valid),.ex_write_rd(rd),.ex_write_value(wb_value),
     .ex_redirect_valid(redirect||terminal_complete||halted));
 
