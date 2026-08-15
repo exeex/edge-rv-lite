@@ -21,6 +21,8 @@ module edge_rv_lite_core #(
   output wire cache_op_is_va,output wire [1:0] cache_op_kind,
   output wire [63:0] cache_op_addr,
   input wire cache_op_complete_valid,
+  output wire icache_invalidate_valid,input wire icache_invalidate_ready,
+  input wire icache_invalidate_complete,
   output wire accel_req_valid, input wire accel_req_ready,
   output wire [63:0] accel_req_inst,
   output wire [63:0] accel_req_src0, output wire [63:0] accel_req_src1,
@@ -35,7 +37,8 @@ module edge_rv_lite_core #(
     A_ZBA=9, A_ZBA_UW=10;
   reg [63:0] gpr [0:31];
   reg [63:0] cycle_q, instret_q;
-  reg mem_started_q, mul_started_q, fpu_started_q, accel_started_q, cache_started_q;
+  reg mem_started_q, mul_started_q, fpu_started_q, accel_started_q;
+  reg cache_started_q, icache_invalidate_started_q;
   integer ri;
 
   wire parcel_valid, parcel_ready, parcel_error;
@@ -100,6 +103,7 @@ module edge_rv_lite_core #(
   wire is_int_mem=(decoded_class==4'd2)||(decoded_class==4'd3);
   wire is_fp_mem=ENABLE_FPU&&(is_fp_load||is_fp_store);
   wire is_fence=(decoded_class==4'd6)&&(opc==7'h0f);
+  wire is_fence_i=is_fence&&(f3==3'b001);
   wire is_supported_system=is_cycle||is_instret||is_hardware_id||is_ebreak||
     is_edge_break||is_fence;
   wire is_accel=ex_is_64b&&(decoded_class==4'd8);
@@ -205,11 +209,17 @@ module edge_rv_lite_core #(
   assign cache_op_addr=ex_rs1_value;
   wire cache_req_fire=cache_op_valid&&cache_op_ready;
   wire cache_done=is_edge_cache&&cache_started_q&&cache_op_complete_valid;
+  assign icache_invalidate_valid=
+    ex_issue_ok&&is_fence_i&&!icache_invalidate_started_q;
+  wire icache_invalidate_fire=
+    icache_invalidate_valid&&icache_invalidate_ready;
+  wire fence_i_done=is_fence_i&&icache_invalidate_started_q&&
+    icache_invalidate_complete;
   wire fast_done=ex_issue_ok&&is_fast_class;
-  wire sys_done=ex_issue_ok&&is_supported_system;
+  wire sys_done=ex_issue_ok&&is_supported_system&&!is_fence_i;
   wire ex_done=fast_done||sys_done||(is_muldiv&&mul_result_valid)||
     ((is_int_mem||is_fp_mem)&&lsu_done)||(is_fp_compute&&fpu_done)||
-    accel_done||cache_done||
+    accel_done||cache_done||fence_i_done||
     (ex_valid&&(ex_error||!ex_legal));
   wire ex_faulting=ex_error||!ex_legal||
     ((is_int_mem||is_fp_mem)&&lsu_done&&lsu_error)||
@@ -218,7 +228,10 @@ module edge_rv_lite_core #(
     (ex_faulting||is_ebreak||is_edge_break);
   wire frontend_stop=halted||terminal_complete;
   wire ex_control=is_jal||is_jalr||is_branch;
-  wire redirect=fast_done&&ex_control&&branch_taken;
+  wire branch_redirect=fast_done&&ex_control&&branch_taken;
+  wire redirect=branch_redirect||fence_i_done;
+  wire [PC_WIDTH-1:0] redirect_pc=fence_i_done ?
+    ex_pc+{{(PC_WIDTH-3){1'b0}},3'd4}:branch_target;
   wire [63:0] wb_value=is_accel?accel_resp_value:is_fp_compute?fpu_value:
     is_muldiv?mul_result:is_load?lsu_value:
     is_cycle?cycle_q:is_instret?instret_q:is_hardware_id?
@@ -235,7 +248,7 @@ module edge_rv_lite_core #(
     .imem_resp_data(imem_resp_data),.imem_resp_error(imem_resp_error),
     .op_valid(parcel_valid),.op_ready(parcel_ready),.op_pc(parcel_pc),
     .op_inst(parcel_inst), .op_error(parcel_error), .halt(frontend_stop),
-    .redirect_valid(redirect),.redirect_pc(branch_target));
+    .redirect_valid(redirect),.redirect_pc(redirect_pc));
   edge_rv_lite_instruction_assembler assembler(
     .clk(clk), .reset_n(reset_n), .parcel_valid(parcel_valid),
     .parcel_ready(parcel_ready), .parcel_pc(parcel_pc),
@@ -265,6 +278,7 @@ module edge_rv_lite_core #(
       cycle_q<=0; instret_q<=0; mem_started_q<=0; mul_started_q<=0;
       fpu_started_q<=0;
       accel_started_q<=0; cache_started_q<=0;
+      icache_invalidate_started_q<=0;
       halted<=0; illegal<=0;
     end else begin
       cycle_q<=cycle_q+1; gpr[0]<=0;
@@ -273,9 +287,11 @@ module edge_rv_lite_core #(
       if(fpu_start) fpu_started_q<=1;
       if(accel_req_fire) accel_started_q<=1;
       if(cache_req_fire) cache_started_q<=1;
+      if(icache_invalidate_fire) icache_invalidate_started_q<=1;
       if(ex_done&&!halted) begin
         mem_started_q<=0; mul_started_q<=0; fpu_started_q<=0; accel_started_q<=0;
         cache_started_q<=0;
+        icache_invalidate_started_q<=0;
         if(ex_valid&&!ex_faulting) instret_q<=instret_q+1;
         if(wb_valid) gpr[rd]<=wb_value;
         if(!ex_faulting&&(is_ebreak||is_edge_break)) halted<=1;

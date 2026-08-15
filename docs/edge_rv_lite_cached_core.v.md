@@ -21,17 +21,27 @@ to the core fetch response. An errored refill satisfies the outstanding miss
 without updating the I-cache data or tag arrays, so bad AXI data cannot become
 an executable cache hit.
 
-Only lane 0 is connected. Lane 1, redirect-kill metadata, cache operations and
-backend pause inputs are tied inactive because the lite core cannot have a
-younger outstanding scalar memory operation. D-cache sequence and epoch fields
-are constant zero. This module adds no RTU, snapshot, replay or completion
-queue.
+`FENCE.I` is a serialized execute-stage operation. The core stops advancing
+younger instructions and requests a full I-cache valid-bit sweep after any
+already accepted instruction refill has drained. The cached wrapper blocks new
+fetch requests from racing that handshake. When the 1024-line 16 KiB sweep (or
+2048-line 32 KiB sweep) completes, the pipeline discards all younger IF/ID
+state and restarts at `fence_pc + 4`, so the next access refills modified code.
+Software must first make code bytes visible in backing instruction memory—for
+example by completing D-cache clean/writeback or DMA—and then execute
+`FENCE.I`. The instruction has no separate software-visible error result;
+ordinary refill errors are reported when the new fetch occurs.
 
-The focused test boots a six-instruction program through real I-cache misses,
-loads `41` through a real D-cache miss/refill, stores `42` into the cached line,
-loads the hit into `x31`, and executes `ebreak`. It requires at least two
-instruction refills, at least one instruction hit, exactly one data refill and
-the final value `x31=42`.
+Only lane 0 is connected. Lane 1, redirect-kill metadata, and backend pause
+inputs are tied inactive because the lite core cannot have a younger
+outstanding scalar memory operation. D-cache sequence and epoch fields are
+constant zero. This module adds no RTU, snapshot, replay or completion queue.
+
+The focused test boots through real I-cache misses, proves the D-cache
+load/store result `x30=42`, calls a cached code line, modifies its backing
+instruction, executes `FENCE.I`, and calls it again. It requires the invalidate
+sweep to block fetch, exactly two refills of the modified line, and the new
+instruction result `x31=2`.
 
 The cached CoreMark integration test loads the parent harness memory image only
 behind these refill/writeback ports. It services I-cache lines and D-cache

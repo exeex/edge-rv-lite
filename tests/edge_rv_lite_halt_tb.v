@@ -36,6 +36,8 @@ module edge_rv_lite_halt_tb;
     .cache_op_valid(cache_op_valid), .cache_op_ready(1'b1),
     .cache_op_is_va(), .cache_op_kind(), .cache_op_addr(),
     .cache_op_complete_valid(1'b0),
+    .icache_invalidate_valid(), .icache_invalidate_ready(1'b1),
+    .icache_invalidate_complete(1'b1),
     .accel_req_valid(accel_req_valid), .accel_req_ready(1'b1),
     .accel_req_inst(), .accel_req_src0(), .accel_req_src1(),
     .accel_resp_valid(1'b0), .accel_resp_error(1'b0),

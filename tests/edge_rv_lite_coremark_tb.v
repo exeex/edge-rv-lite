@@ -50,6 +50,8 @@ module edge_rv_lite_coremark_tb;
     .dmem_resp_rdata(dmem_resp_rdata),
     .cache_op_valid(), .cache_op_ready(1'b1), .cache_op_is_va(),
     .cache_op_kind(), .cache_op_addr(), .cache_op_complete_valid(1'b0),
+    .icache_invalidate_valid(), .icache_invalidate_ready(1'b1),
+    .icache_invalidate_complete(1'b1),
     .halted(halted), .illegal(illegal),
     .debug_x31(debug_x31), .cycle_count(cycle_count),
     .instret_count(instret_count)
