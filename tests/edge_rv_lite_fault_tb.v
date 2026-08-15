@@ -8,6 +8,7 @@ module edge_rv_lite_fault_tb;
   localparam integer RESERVED_OP32_M = 5;
   localparam integer CACHE_INDEX_NONZERO_RS1 = 6;
   localparam integer CACHE_NONZERO_FUNCT7 = 7;
+  localparam integer INVALID_FP_MEM = 8;
 
   reg clk = 0;
   always #5 clk = ~clk;
@@ -33,7 +34,7 @@ module edge_rv_lite_fault_tb;
   wire halted, illegal;
   wire [63:0] instret_count;
 
-  edge_rv_lite_core dut(
+  edge_rv_lite_core #(.ENABLE_FPU(1)) dut(
     .clk(clk), .reset_n(reset_n),
     .imem_req_valid(imem_req_valid), .imem_req_ready(1'b1),
     .imem_req_addr(imem_req_addr), .imem_resp_valid(imem_resp_valid),
@@ -87,6 +88,10 @@ module edge_rv_lite_fault_tb;
       CACHE_NONZERO_FUNCT7: begin
         // Cache operations reserve every nonzero funct7.
         imem_resp_data <= 32'h0210_000b;
+      end
+      INVALID_FP_MEM: begin
+        // LOAD_FP funct3=000 is unallocated.
+        imem_resp_data <= 32'h0000_0287;
       end
       default: imem_resp_data <= 32'h0010_0073;
     endcase
@@ -151,6 +156,9 @@ module edge_rv_lite_fault_tb;
     start_case(CACHE_NONZERO_FUNCT7);
     if (cache_requests != 0)
       $fatal(1, "invalid cache funct7 issued %0d requests", cache_requests);
+    start_case(INVALID_FP_MEM);
+    if (dmem_requests != 0)
+      $fatal(1, "invalid FP memory op issued %0d requests", dmem_requests);
     $display("TEST PASS: faults and reserved scalar/cache encodings stop cleanly");
     $finish;
   end

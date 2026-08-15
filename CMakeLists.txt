@@ -106,6 +106,7 @@ set(CORE_RTL
   ${CMAKE_CURRENT_LIST_DIR}/rtl/edge_rv_lite_instruction_assembler.v
   ${CMAKE_CURRENT_LIST_DIR}/rtl/edge_rv_lite_pipeline.v
   ${CMAKE_CURRENT_LIST_DIR}/rtl/edge_rv_lite_lsu.v
+  ${CMAKE_CURRENT_LIST_DIR}/rtl/edge_rv_lite_fp_mem_format.v
   ${CMAKE_CURRENT_LIST_DIR}/rtl/edge_rv_lite_core.v)
 
 add_custom_command(

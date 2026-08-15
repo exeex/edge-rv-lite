@@ -76,8 +76,8 @@ module edge_rv_lite_core #(
   wire is_jal=opc==7'h6f, is_jalr=(opc==7'h67)&&(f3==0);
   wire is_branch=opc==7'h63;
   wire is_load=opc==7'h03, is_store=opc==7'h23;
-  wire is_fp_load=(opc==7'h07)&&(f3==3'b010);
-  wire is_fp_store=(opc==7'h27)&&(f3==3'b010);
+  wire is_fp_load=(decoded_class==4'd5)&&(opc==7'h07);
+  wire is_fp_store=(decoded_class==4'd5)&&(opc==7'h27);
   wire is_fp_compute=(opc==7'h53)||(opc==7'h43)||(opc==7'h47)||
                      (opc==7'h4b)||(opc==7'h4f);
   wire is_muldiv=decoded_class==4'd4;
@@ -153,11 +153,17 @@ module edge_rv_lite_core #(
   wire lsu_ready,lsu_done,lsu_error,lsu_busy; wire [63:0] lsu_value;
   wire lsu_start=ex_issue_ok&&(is_int_mem||is_fp_mem)&&!mem_started_q;
   wire [31:0] fpu_store_value;
+  wire [31:0] fp_load_value;
+  wire [63:0] fp_store_value;
+  edge_rv_lite_fp_mem_format fp_mem_format(
+    .funct3(f3),.load_value(lsu_value),.store_fp32(fpu_store_value),
+    .load_fp32(fp_load_value),.store_value(fp_store_value));
   edge_rv_lite_lsu #(.MEM_RESP_FORMATTED(DMEM_RESP_FORMATTED)) lsu(
     .clk(clk),.reset_n(reset_n),.op_valid(lsu_start),
-    .op_ready(lsu_ready),.op_store(is_store||is_fp_store),.op_funct3(f3),
+    .op_ready(lsu_ready),.op_store(is_store||is_fp_store),
+    .op_fp(is_fp_load||is_fp_store),.op_funct3(f3),
     .op_base(ex_rs1_value),.op_offset((is_store||is_fp_store)?imm_s:imm_i),
-    .op_store_data(is_fp_store?{32'b0,fpu_store_value}:ex_rs2_value),.mem_req_valid(dmem_req_valid),
+    .op_store_data(is_fp_store?fp_store_value:ex_rs2_value),.mem_req_valid(dmem_req_valid),
     .mem_req_ready(dmem_req_ready),.mem_req_write(dmem_req_write),
     .mem_req_addr(dmem_req_addr),.mem_req_wdata(dmem_req_wdata),
     .mem_req_wstrb(dmem_req_wstrb),.mem_req_size(dmem_req_size),
@@ -177,7 +183,7 @@ module edge_rv_lite_core #(
       .complete_rd(fpu_rd),.complete_value(fpu_value),
       .complete_fflags(fpu_fflags),
       .load_write_valid(ex_issue_ok&&is_fp_load&&lsu_done&&!lsu_error),
-      .load_write_rd(rd),.load_write_value(lsu_value[31:0]),
+      .load_write_rd(rd),.load_write_value(fp_load_value),
       .store_read_rs(ex_inst[24:20]),.store_read_value(fpu_store_value));
   end else begin: g_no_fpu
     assign fpu_ready=1'b0; assign fpu_done=1'b0;

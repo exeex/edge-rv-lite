@@ -10,6 +10,7 @@ module edge_rv_lite_lsu #(
   input  wire                   op_valid,
   output wire                   op_ready,
   input  wire                   op_store,
+  input  wire                   op_fp,
   input  wire [2:0]             op_funct3,
   input  wire [VALUE_WIDTH-1:0] op_base,
   input  wire [VALUE_WIDTH-1:0] op_offset,
@@ -33,10 +34,12 @@ module edge_rv_lite_lsu #(
   localparam IDLE = 2'd0, REQUEST = 2'd1, RESPONSE = 2'd2;
   reg [1:0] state_q;
   reg store_q;
+  reg fp_q;
   reg [2:0] funct3_q;
   reg [VALUE_WIDTH-1:0] addr_q;
   reg [VALUE_WIDTH-1:0] store_data_q;
-  wire [1:0] size = funct3_q[1:0];
+  wire [1:0] size = fp_q && (funct3_q[2:1] == 2'b11) ?
+                    2'b00 : funct3_q[1:0];
   wire [2:0] byte_offset = addr_q[2:0];
   wire [63:0] shifted_store = store_data_q << (byte_offset * 8);
   wire [7:0] base_strobe = size == 2'd0 ? 8'h01 :
@@ -53,7 +56,7 @@ module edge_rv_lite_lsu #(
   assign mem_req_wdata = shifted_store;
   assign mem_req_wstrb = base_strobe << byte_offset;
   assign mem_req_size = size;
-  assign mem_req_signed = !funct3_q[2];
+  assign mem_req_signed = !fp_q && !funct3_q[2];
 
   always @* begin
     case (size)
@@ -71,6 +74,7 @@ module edge_rv_lite_lsu #(
     if (!reset_n) begin
       state_q <= IDLE;
       store_q <= 1'b0;
+      fp_q <= 1'b0;
       funct3_q <= 3'd0;
       addr_q <= {VALUE_WIDTH{1'b0}};
       store_data_q <= {VALUE_WIDTH{1'b0}};
@@ -81,6 +85,7 @@ module edge_rv_lite_lsu #(
       op_done <= 1'b0;
       if (op_valid && op_ready) begin
         store_q <= op_store;
+        fp_q <= op_fp;
         funct3_q <= op_funct3;
         addr_q <= op_base + op_offset;
         store_data_q <= op_store_data;

@@ -129,7 +129,7 @@ that response before another instruction may enter execution.
 ## Optional FPU and precision normalization
 
 `ENABLE_FPU` defaults to `0`. Enabling it adds the shared single-issue
-`edge_fpu_alu` and FPR file. FP8, FP16, BF16, FP32, and FP64 are memory formats:
+`edge_fpu_alu` and FPR file. FP8, FP16, BF16, and FP32 are memory formats:
 loads convert to FP32, all arithmetic uses the FP32 ALU, and stores convert from
 FP32. This lets bare-metal C++ accept accidental `double` code (`1.0` instead
 of `1.0f`) without soft-float helpers, but does not provide FP64 accuracy.
@@ -141,9 +141,15 @@ positions.
 | Memory format | Load encoding: `imm[11:0] rs1 funct3 rd opcode` | Store encoding: `imm[11:5] rs2 rs1 funct3 imm[4:0] opcode` | Bytes |
 | --- | --- | --- | ---: |
 | FP16 | `imm rs1 001 rd 0000111` | `imm[11:5] rs2 rs1 001 imm[4:0] 0100111` | 2 |
+| FP32 | `imm rs1 010 rd 0000111` | `imm[11:5] rs2 rs1 010 imm[4:0] 0100111` | 4 |
 | BF16 | `imm rs1 101 rd 0000111` | `imm[11:5] rs2 rs1 101 imm[4:0] 0100111` | 2 |
 | FP8 E5M2 | `imm rs1 110 rd 0000111` | `imm[11:5] rs2 rs1 110 imm[4:0] 0100111` | 1 |
 | FP8 E4M3FN | `imm rs1 111 rd 0000111` | `imm[11:5] rs2 rs1 111 imm[4:0] 0100111` | 1 |
+
+Loads promote each format to the physical FP32 FPR representation. Stores use
+round-to-nearest, ties-to-even; FP8 overflow saturates to the largest finite
+value. `funct3=000`, `011`, and `100` are unsupported and trap before issuing a
+memory request.
 
 Arithmetic format suffixes do not select different datapaths. For example,
 `fmul.s`, `fmul.h`, and `fmul.d` ignore `fmt=inst[26:25]` and all execute as

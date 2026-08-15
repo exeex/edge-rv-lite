@@ -13,6 +13,11 @@ performs byte-offset extraction plus sign extension in the lite LSU.
 response is already extracted and extended; the LSU forwards that value
 without formatting it a second time. The cached-core wrapper uses this mode.
 
+`op_fp` selects the FP memory size mapping. FP16/BF16 are two-byte accesses,
+FP32 is four bytes, and both FP8 formats are one byte despite their reserved
+`funct3=110/111` encodings. FP requests are unsigned at the memory boundary;
+`edge_rv_lite_fp_mem_format` performs promotion and narrowing at the FPR edge.
+
 There are no sequence IDs, epochs, load queue, store buffer, forwarding, replay,
 or redirect handling. The global lite owner prevents a younger instruction
 from existing, so an LSU operation cannot be wrong-path once started.

@@ -22,6 +22,7 @@ ${EDGE_RV_LITE_ROOT}/rtl/edge_rv_lite_decode.v
 ${EDGE_RV_LITE_ROOT}/rtl/edge_rv_lite_frontend.v
 ${EDGE_RV_LITE_ROOT}/rtl/edge_rv_lite_instruction_assembler.v
 ${EDGE_RV_LITE_ROOT}/rtl/edge_rv_lite_lsu.v
+${EDGE_RV_LITE_ROOT}/rtl/edge_rv_lite_fp_mem_format.v
 ${EDGE_RV_LITE_ROOT}/rtl/edge_rv_lite_icache_adapter.v
 ${EDGE_RV_LITE_ROOT}/rtl/edge_rv_lite_dcache_adapter.v
 ${EDGE_RV_LITE_ROOT}/rtl/edge_rv_lite_dtcm_router.v

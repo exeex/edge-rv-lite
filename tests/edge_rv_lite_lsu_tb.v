@@ -1,7 +1,7 @@
 `timescale 1ns/1ps
 module edge_rv_lite_lsu_tb;
   reg clk = 0; always #5 clk = ~clk;
-  reg reset_n = 0, op_valid = 0, op_store = 0;
+  reg reset_n = 0, op_valid = 0, op_store = 0, op_fp = 0;
   reg [2:0] op_funct3 = 0;
   reg [63:0] op_base = 0, op_offset = 0, op_store_data = 0;
   wire op_ready, mem_req_valid, mem_req_write;
