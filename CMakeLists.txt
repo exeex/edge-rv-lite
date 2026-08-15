@@ -162,6 +162,19 @@ add_test(NAME edge_rv_lite_accel_serial
 set_tests_properties(edge_rv_lite_accel_serial PROPERTIES TIMEOUT 30)
 
 add_custom_command(
+  OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/fault_obj/Vedge_rv_lite_fault_tb
+  COMMAND ${VERILATOR} --binary --timing -Wno-fatal
+          --top-module edge_rv_lite_fault_tb
+          --Mdir ${CMAKE_CURRENT_BINARY_DIR}/fault_obj
+          ${CORE_RTL} ${CMAKE_CURRENT_LIST_DIR}/tests/edge_rv_lite_fault_tb.v
+  DEPENDS ${CORE_RTL} ${CMAKE_CURRENT_LIST_DIR}/tests/edge_rv_lite_fault_tb.v)
+add_custom_target(edge_rv_lite_fault_vvp ALL
+  DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/fault_obj/Vedge_rv_lite_fault_tb)
+add_test(NAME edge_rv_lite_fault
+  COMMAND ${CMAKE_CURRENT_BINARY_DIR}/fault_obj/Vedge_rv_lite_fault_tb)
+set_tests_properties(edge_rv_lite_fault PROPERTIES TIMEOUT 30)
+
+add_custom_command(
   OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/hardware_id_obj/Vedge_rv_lite_hardware_id_tb
   COMMAND ${VERILATOR} --binary --timing -Wno-fatal
           --top-module edge_rv_lite_hardware_id_tb

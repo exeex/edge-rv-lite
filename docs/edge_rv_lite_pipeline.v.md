@@ -26,6 +26,12 @@ accelerator request is accepted and its matching response arrives. This is a
 single-owner handshake, not a command queue: no younger scalar or accelerator
 instruction can execute while the command is outstanding.
 
+The containing core uses one `ex_faulting` commit gate. A fetch/decode fault
+completes without issuing ALU redirects, MUL/DIV, LSU, FPU, cache, or accelerator
+requests. An LSU or accelerator response error suppresses GPR writeback. Every
+faulting instruction halts as illegal without incrementing `instret`; only a
+non-faulting `ebreak` or Edge break performs its normal halt-side effects.
+
 The request operands follow the shared Edge64 classifier rather than assuming
 ordinary scalar `rs1/rs2` conventions. `accel_req_src0` carries the classified
 base GPR and `accel_req_src1` carries the command-specific capture GPR;

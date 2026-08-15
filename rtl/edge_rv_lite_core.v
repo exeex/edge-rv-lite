@@ -125,6 +125,7 @@ module edge_rv_lite_core #(
   wire ex_legal=is_accel ? decoded_legal :
                 (!ex_is_64b&&(legal_fast||legal_mem||legal_sys||
                               (ENABLE_FPU&&is_fp_compute&&fpu_legal)));
+  wire ex_issue_ok=ex_valid&&!ex_error&&ex_legal;
 
   wire [11:0] i12=ex_inst[31:20];
   wire [11:0] s12={ex_inst[31:25],ex_inst[11:7]};
@@ -160,14 +161,14 @@ module edge_rv_lite_core #(
     .branch_taken(branch_taken),.branch_target(branch_target));
 
   wire mul_ready,mul_result_valid,mul_busy; wire [63:0] mul_result;
-  wire mul_start=ex_valid&&is_muldiv&&!mul_started_q;
+  wire mul_start=ex_issue_ok&&is_muldiv&&!mul_started_q;
   edge_scalar_muldiv_leaf muldiv(.clk(clk),.reset_n(reset_n),
     .op_valid(mul_start),.op_ready(mul_ready),.op(alu_op),
     .src0(ex_rs1_value),.src1(ex_rs2_value),.funct3(f3),
     .result_valid(mul_result_valid),.result_value(mul_result),.busy(mul_busy));
 
   wire lsu_ready,lsu_done,lsu_error,lsu_busy; wire [63:0] lsu_value;
-  wire lsu_start=ex_valid&&legal_mem&&!mem_started_q;
+  wire lsu_start=ex_issue_ok&&legal_mem&&!mem_started_q;
   wire [31:0] fpu_store_value;
   edge_rv_lite_lsu #(.MEM_RESP_FORMATTED(DMEM_RESP_FORMATTED)) lsu(
     .clk(clk),.reset_n(reset_n),.op_valid(lsu_start),
@@ -186,13 +187,13 @@ module edge_rv_lite_core #(
   generate if(ENABLE_FPU) begin: g_fpu
     edge_fpu_alu fpu_alu(
       .clk(clk),.reset_n(reset_n),
-      .issue_valid(ex_valid&&is_fp_compute&&!fpu_started_q),
+      .issue_valid(ex_issue_ok&&is_fp_compute&&!fpu_started_q),
       .issue_ready(fpu_ready),.issue_inst(ex_inst[31:0]),
       .issue_gpr_src(ex_rs1_value),.issue_legal(fpu_legal),
       .complete_valid(fpu_done),.complete_gpr_write(fpu_gpr_write),
       .complete_rd(fpu_rd),.complete_value(fpu_value),
       .complete_fflags(fpu_fflags),
-      .load_write_valid(ex_valid&&is_fp_load&&lsu_done&&!lsu_error),
+      .load_write_valid(ex_issue_ok&&is_fp_load&&lsu_done&&!lsu_error),
       .load_write_rd(rd),.load_write_value(lsu_value[31:0]),
       .store_read_rs(ex_inst[24:20]),.store_read_value(fpu_store_value));
   end else begin: g_no_fpu
@@ -201,25 +202,28 @@ module edge_rv_lite_core #(
     assign fpu_value=64'b0; assign fpu_fflags=5'b0;
     assign fpu_legal=1'b0; assign fpu_store_value=32'b0;
   end endgenerate
-  wire fpu_start=ex_valid&&is_fp_compute&&!fpu_started_q&&fpu_ready&&fpu_legal;
+  wire fpu_start=ex_issue_ok&&is_fp_compute&&!fpu_started_q&&fpu_ready;
 
-  assign accel_req_valid=ex_valid&&is_accel&&!accel_started_q;
+  assign accel_req_valid=ex_issue_ok&&is_accel&&!accel_started_q;
   assign accel_req_inst=ex_inst;
   assign accel_req_src0=ex_rs1_value;
   assign accel_req_src1=ex_rs2_value;
   wire accel_req_fire=accel_req_valid&&accel_req_ready;
   wire accel_done=is_accel&&accel_started_q&&accel_resp_valid;
-  assign cache_op_valid=ex_valid&&is_edge_cache&&!cache_started_q;
+  assign cache_op_valid=ex_issue_ok&&is_edge_cache&&!cache_started_q;
   assign cache_op_is_va=f3==3'b001;
   assign cache_op_kind=ex_inst[21:20];
   assign cache_op_addr=ex_rs1_value;
   wire cache_req_fire=cache_op_valid&&cache_op_ready;
   wire cache_done=is_edge_cache&&cache_started_q&&cache_op_complete_valid;
-  wire fast_done=ex_valid&&!ex_is_64b&&legal_fast&&!is_muldiv;
-  wire sys_done=ex_valid&&!ex_is_64b&&legal_sys&&!is_edge_cache;
+  wire fast_done=ex_issue_ok&&!ex_is_64b&&legal_fast&&!is_muldiv;
+  wire sys_done=ex_issue_ok&&!ex_is_64b&&legal_sys&&!is_edge_cache;
   wire ex_done=fast_done||sys_done||(is_muldiv&&mul_result_valid)||
     (legal_mem&&lsu_done)||(is_fp_compute&&fpu_done)||accel_done||cache_done||
-    (ex_valid&&!ex_legal);
+    (ex_valid&&(ex_error||!ex_legal));
+  wire ex_faulting=ex_error||!ex_legal||
+    (legal_mem&&lsu_done&&lsu_error)||
+    (is_accel&&accel_done&&accel_resp_error);
   wire ex_control=is_jal||is_jalr||is_branch;
   wire redirect=fast_done&&ex_control&&branch_taken;
   wire [63:0] wb_value=is_accel?accel_resp_value:is_fp_compute?fpu_value:
@@ -227,8 +231,8 @@ module edge_rv_lite_core #(
     is_cycle?cycle_q:is_instret?instret_q:is_hardware_id?
     {9'd2,EDGE_ASIC_ID[46:32],(ENABLE_FPU?4'd1:4'd0),4'd0,
      EDGE_ASIC_ID[31:0]}:fast_result;
-  wire wb_valid=ex_done&&(rd!=0)&&!is_store&&!is_fp_store&&!is_fp_load&&
-                !is_branch&&!is_ebreak&&ex_legal&&
+  wire wb_valid=ex_done&&!ex_faulting&&(rd!=0)&&!is_store&&!is_fp_store&&
+                !is_fp_load&&!is_branch&&!is_ebreak&&
                 (!is_accel||decoded_writes_gpr)&&
                 (!is_fp_compute||fpu_gpr_write);
 
@@ -275,12 +279,11 @@ module edge_rv_lite_core #(
       if(ex_done) begin
         mem_started_q<=0; mul_started_q<=0; fpu_started_q<=0; accel_started_q<=0;
         cache_started_q<=0;
-        if(ex_valid) instret_q<=instret_q+1;
+        if(ex_valid&&!ex_faulting) instret_q<=instret_q+1;
         if(wb_valid) gpr[rd]<=wb_value;
-        if(is_ebreak||is_edge_break) halted<=1;
-        if(is_edge_break) gpr[31]<=ex_rs1_value;
-        if(!ex_legal||ex_error||(legal_mem&&lsu_error)||
-           (is_accel&&accel_resp_error)) begin illegal<=1; halted<=1; end
+        if(!ex_faulting&&(is_ebreak||is_edge_break)) halted<=1;
+        if(!ex_faulting&&is_edge_break) gpr[31]<=ex_rs1_value;
+        if(ex_faulting) begin illegal<=1; halted<=1; end
       end
     end
   end
