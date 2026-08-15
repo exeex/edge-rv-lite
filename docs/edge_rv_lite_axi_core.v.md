@@ -21,5 +21,6 @@ independently, matching the separate AXI read and write channels.
 
 The integration CoreMark test places the same parent-produced 64-bit image
 behind an AXI slave model, checks the `0xf1` and `0xd1` refill IDs and burst
-attributes, and requires the same architectural `instret=616228` signature as
-the direct-memory and cache-boundary tests.
+attributes, and requires the local LLVM 19.1.1 image signature
+`instret=743510`. The LLVM 22.1.8 image and its `instret=616228` result remain
+a separate toolchain checkpoint.

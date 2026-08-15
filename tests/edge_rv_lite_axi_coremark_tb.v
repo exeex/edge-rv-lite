@@ -4,6 +4,9 @@ module edge_rv_lite_axi_coremark_tb;
   localparam integer MEM_BYTES = 1024 * 1024;
   localparam integer MEM_WORDS = MEM_BYTES / 8;
   localparam integer TIMEOUT_CYCLES = 10_000_000;
+  // Linux LLVM 19.1.1 baseline for the parent-produced CoreMark image.
+  // The LLVM 22.1.8 image is a separate checkpoint at 616228 instructions.
+  localparam [63:0] LLVM19_COREMARK_INSTRET = 64'd743510;
 
   reg clk = 1'b0;
   reg reset_n = 1'b0;
@@ -171,7 +174,7 @@ module edge_rv_lite_axi_coremark_tb;
     if (!halted) $fatal(1, "AXI CoreMark timeout instret=%0d", instret_count);
     if (illegal) $fatal(1, "AXI CoreMark reported illegal instruction");
     if (debug_x31 == 0) $fatal(1, "AXI CoreMark returned zero");
-    if (instret_count != 64'd616228)
+    if (instret_count != LLVM19_COREMARK_INSTRET)
       $fatal(1, "AXI CoreMark instret mismatch=%0d", instret_count);
     if (icache_reads == 0 || dcache_reads == 0)
       $fatal(1, "AXI CoreMark did not use both cache read IDs");

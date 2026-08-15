@@ -4,6 +4,9 @@ module edge_rv_lite_cached_coremark_tb;
   localparam integer MEM_BYTES = 1024 * 1024;
   localparam integer MEM_WORDS = MEM_BYTES / 8;
   localparam integer TIMEOUT_CYCLES = 10_000_000;
+  // Linux LLVM 19.1.1 baseline for the parent-produced CoreMark image.
+  // The LLVM 22.1.8 image is a separate checkpoint at 616228 instructions.
+  localparam [63:0] LLVM19_COREMARK_INSTRET = 64'd743510;
   localparam [39:0] MEM_BYTES_40 = 40'd1_048_576;
   localparam [63:0] MEM_BYTES_64 = 64'd1_048_576;
 
@@ -155,7 +158,7 @@ module edge_rv_lite_cached_coremark_tb;
       $fatal(1, "cached CoreMark illegal pc=%h inst=%h", dut.core.ex_pc,
              dut.core.ex_inst);
     if (debug_x31 == 0) $fatal(1, "cached CoreMark returned zero");
-    if (instret_count != 64'd616228)
+    if (instret_count != LLVM19_COREMARK_INSTRET)
       $fatal(1, "cached CoreMark instret mismatch=%0d", instret_count);
     if (imem_refill_count == 0 || dmem_refill_count == 0)
       $fatal(1, "cached CoreMark did not use both caches");

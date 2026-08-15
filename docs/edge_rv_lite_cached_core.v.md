@@ -31,6 +31,9 @@ the final value `x31=42`.
 The cached CoreMark integration test loads the parent harness memory image only
 behind these refill/writeback ports. It services I-cache lines and D-cache
 four-beat refills independently, commits dirty writeback beats to the backing
-array, and requires the architectural `instret=616228` result. This is the
-first lite CoreMark test that includes real cache hit/miss state; it still
-stops at the pre-BIU boundary and therefore does not model AXI arbitration.
+array, and requires the local LLVM 19.1.1 image baseline
+`instret=743510`. The LLVM 22.1.8 image is tracked separately at
+`instret=616228`; instruction counts must not be mixed across those generated
+images. This is the first lite CoreMark test that includes real cache hit/miss
+state; it still stops at the pre-BIU boundary and therefore does not model AXI
+arbitration.
