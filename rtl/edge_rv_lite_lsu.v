@@ -38,6 +38,13 @@ module edge_rv_lite_lsu #(
   reg [2:0] funct3_q;
   reg [VALUE_WIDTH-1:0] addr_q;
   reg [VALUE_WIDTH-1:0] store_data_q;
+  wire [VALUE_WIDTH-1:0] incoming_addr = op_base + op_offset;
+  wire [1:0] incoming_size = op_fp && (op_funct3[2:1] == 2'b11) ?
+                             2'b00 : op_funct3[1:0];
+  wire incoming_misaligned =
+    (incoming_size == 2'd1 && incoming_addr[0]) ||
+    (incoming_size == 2'd2 && |incoming_addr[1:0]) ||
+    (incoming_size == 2'd3 && |incoming_addr[2:0]);
   wire [1:0] size = fp_q && (funct3_q[2:1] == 2'b11) ?
                     2'b00 : funct3_q[1:0];
   wire [2:0] byte_offset = addr_q[2:0];
@@ -84,12 +91,19 @@ module edge_rv_lite_lsu #(
     end else begin
       op_done <= 1'b0;
       if (op_valid && op_ready) begin
-        store_q <= op_store;
-        fp_q <= op_fp;
-        funct3_q <= op_funct3;
-        addr_q <= op_base + op_offset;
-        store_data_q <= op_store_data;
-        state_q <= REQUEST;
+        if (incoming_misaligned) begin
+          state_q <= IDLE;
+          op_done <= 1'b1;
+          op_error <= 1'b1;
+          op_load_value <= {VALUE_WIDTH{1'b0}};
+        end else begin
+          store_q <= op_store;
+          fp_q <= op_fp;
+          funct3_q <= op_funct3;
+          addr_q <= incoming_addr;
+          store_data_q <= op_store_data;
+          state_q <= REQUEST;
+        end
       end
       if ((state_q == REQUEST) && mem_req_ready) begin
         if (store_q && STORE_ACK_ON_ACCEPT) begin

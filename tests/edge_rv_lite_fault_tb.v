@@ -9,6 +9,8 @@ module edge_rv_lite_fault_tb;
   localparam integer CACHE_INDEX_NONZERO_RS1 = 6;
   localparam integer CACHE_NONZERO_FUNCT7 = 7;
   localparam integer INVALID_FP_MEM = 8;
+  localparam integer MISALIGNED_LOAD = 9;
+  localparam integer MISALIGNED_STORE = 10;
 
   reg clk = 0;
   always #5 clk = ~clk;
@@ -93,6 +95,12 @@ module edge_rv_lite_fault_tb;
         // LOAD_FP funct3=000 is unallocated.
         imem_resp_data <= 32'h0000_0287;
       end
+      MISALIGNED_LOAD: begin
+        imem_resp_data <= 32'h0010_3283; // ld x5,1(x0)
+      end
+      MISALIGNED_STORE: begin
+        imem_resp_data <= 32'h0000_30a3; // sd x0,1(x0)
+      end
       default: imem_resp_data <= 32'h0010_0073;
     endcase
 
@@ -159,6 +167,12 @@ module edge_rv_lite_fault_tb;
     start_case(INVALID_FP_MEM);
     if (dmem_requests != 0)
       $fatal(1, "invalid FP memory op issued %0d requests", dmem_requests);
+    start_case(MISALIGNED_LOAD);
+    if (dmem_requests != 0)
+      $fatal(1, "misaligned load issued %0d requests", dmem_requests);
+    start_case(MISALIGNED_STORE);
+    if (dmem_requests != 0)
+      $fatal(1, "misaligned store issued %0d requests", dmem_requests);
     $display("TEST PASS: faults and reserved scalar/cache encodings stop cleanly");
     $finish;
   end

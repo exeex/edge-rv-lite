@@ -18,9 +18,18 @@ FP32 is four bytes, and both FP8 formats are one byte despite their reserved
 `funct3=110/111` encodings. FP requests are unsigned at the memory boundary;
 `edge_rv_lite_fp_mem_format` performs promotion and narrowing at the FPR edge.
 
+All integer and FP memory operations require natural alignment: two-byte
+accesses require `addr[0]=0`, four-byte accesses require `addr[1:0]=0`, and
+eight-byte accesses require `addr[2:0]=0`; byte accesses are always aligned.
+An unsupported misaligned operation completes locally with `op_error=1` and
+never asserts `mem_req_valid`. Because this check precedes cached, uncached,
+and DTCM routing, every memory path has the same policy and a faulting store
+cannot partially modify memory.
+
 There are no sequence IDs, epochs, load queue, store buffer, forwarding, replay,
 or redirect handling. The global lite owner prevents a younger instruction
 from existing, so an LSU operation cannot be wrong-path once started.
 
 The focused test covers request backpressure, signed subword formatting, store
-strobes, and the rule that neither load nor store completes before its response.
+strobes, completion ordering, and every size at the last legal and first
+crossing offset, including side-effect-free load/store faults.

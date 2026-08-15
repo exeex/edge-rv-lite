@@ -256,6 +256,11 @@ while failed dirty writeback beats remain buffered and retry. AW and W
 handshake independently. `edge_core_lite_top` composes those proven boundaries with the
 shared DTCM/accelerator subsystem and external AXI ownership mux.
 
+Lite memory operations use a single architectural alignment policy before any
+cached, uncached, or DTCM routing. Byte accesses are unrestricted; halfword,
+word, and doubleword accesses must be naturally aligned. Misaligned loads and
+stores fault without issuing a memory request.
+
 Below the issue-policy boundary, both products instantiate
 `edge_accel_data_ctrl`. This common layer owns direct DMA, XY-strided DMA,
 circular DMA, Tensor circular WLD/SLD/WSLD scheduling, and the Tensor/DTCM
