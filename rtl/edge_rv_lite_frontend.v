@@ -18,6 +18,7 @@ module edge_rv_lite_frontend #(
   output wire [PC_WIDTH-1:0] op_pc,
   output wire [31:0]         op_inst,
   output wire                op_error,
+  input  wire                halt,
   input  wire                redirect_valid,
   input  wire [PC_WIDTH-1:0] redirect_pc
 );
@@ -33,7 +34,8 @@ module edge_rv_lite_frontend #(
 
   wire request_fire = imem_req_valid && imem_req_ready;
   wire response_fire = imem_resp_valid && request_pending_q;
-  wire response_push = response_fire && !request_killed_q && !redirect_valid;
+  wire response_push = response_fire && !request_killed_q &&
+                       !redirect_valid && !halt;
   wire output_pop = op_valid && op_ready;
   wire [2:0] reserved_count = {1'b0, fifo_count_q} + request_pending_q;
   wire reservation_space = (reserved_count < 3'd2) ||
@@ -41,9 +43,9 @@ module edge_rv_lite_frontend #(
   // A response and the next request may cross. The two-entry IF FIFO provides
   // the skid slot required when EX starts a variable-latency stall.
   assign imem_req_valid = (!request_pending_q || response_fire) &&
-                          reservation_space && !redirect_valid;
+                          reservation_space && !redirect_valid && !halt;
   assign imem_req_addr = fetch_pc_q;
-  assign op_valid = (fifo_count_q != 0) && !redirect_valid;
+  assign op_valid = (fifo_count_q != 0) && !redirect_valid && !halt;
   assign op_pc = fifo_pc_q[fifo_read_q];
   assign op_inst = fifo_inst_q[fifo_read_q];
   assign op_error = fifo_error_q[fifo_read_q];
@@ -90,8 +92,8 @@ module edge_rv_lite_frontend #(
         default: fifo_count_q <= fifo_count_q;
       endcase
 
-      if (redirect_valid) begin
-        fetch_pc_q <= redirect_pc;
+      if (redirect_valid || halt) begin
+        if (redirect_valid) fetch_pc_q <= redirect_pc;
         fifo_count_q <= 2'd0;
         fifo_read_q <= 1'b0;
         fifo_write_q <= 1'b0;

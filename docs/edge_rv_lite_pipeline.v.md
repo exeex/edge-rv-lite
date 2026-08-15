@@ -32,6 +32,14 @@ requests. An LSU or accelerator response error suppresses GPR writeback. Every
 faulting instruction halts as illegal without incrementing `instret`; only a
 non-faulting `ebreak` or Edge break performs its normal halt-side effects.
 
+A terminal instruction becomes architecturally visible on its `ex_done` edge.
+That same edge flushes younger ID/IF and any partial Edge64 assembly. The sticky
+`halted` state then gates frontend requests/output, execute-unit issue,
+writeback, and retirement until reset. An outstanding fetch response may return
+after halt but is marked killed and cannot re-enter the pipeline. EX payload
+registers are left unchanged so the terminal PC and instruction remain visible
+for hierarchical debug.
+
 The request operands follow the shared Edge64 classifier rather than assuming
 ordinary scalar `rs1/rs2` conventions. `accel_req_src0` carries the classified
 base GPR and `accel_req_src1` carries the command-specific capture GPR;

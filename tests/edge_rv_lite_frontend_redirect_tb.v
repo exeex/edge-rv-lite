@@ -8,7 +8,7 @@ module edge_rv_lite_frontend_redirect_tb;
   reg imem_resp_error = 0;
   wire op_valid; reg op_ready = 1;
   wire [39:0] op_pc; wire [31:0] op_inst; wire op_error;
-  reg redirect_valid = 0; reg [39:0] redirect_pc = 0;
+  reg halt = 0, redirect_valid = 0; reg [39:0] redirect_pc = 0;
   edge_rv_lite_frontend dut(.*);
 
   task respond;
