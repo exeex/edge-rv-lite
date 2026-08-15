@@ -18,6 +18,7 @@ module edge_rv_lite_cache_biu #(
   output wire                       icache_resp_valid,
   input  wire                       icache_resp_ready,
   output wire [DATA_WIDTH-1:0]      icache_resp_data,
+  output wire                       icache_resp_error,
 
   input  wire                       dcache_refill_req_valid,
   output wire                       dcache_refill_req_ready,
@@ -34,6 +35,7 @@ module edge_rv_lite_cache_biu #(
   input  wire [DATA_WIDTH-1:0]      dcache_wb_data,
   input  wire                       dcache_wb_last,
   output wire                       dcache_wb_complete,
+  output wire                       dcache_wb_error,
 
   output wire [ADDR_WIDTH-1:0]      axi_araddr,
   output wire [1:0]                 axi_arburst,
@@ -82,6 +84,8 @@ module edge_rv_lite_cache_biu #(
   reg [ADDR_WIDTH-1:0] icache_buf_addr_q;
   reg read_active_q;
   reg read_owner_q;
+  reg [LEN_WIDTH-1:0] read_len_q;
+  reg [LEN_WIDTH-1:0] read_beat_q;
 
   reg wb_valid_q;
   reg wb_aw_sent_q;
@@ -99,6 +103,14 @@ module edge_rv_lite_cache_biu #(
   wire r_fire = axi_rvalid && axi_rready;
   wire wb_accept = dcache_wb_valid && dcache_wb_ready;
   wire wb_b_fire = axi_bvalid && axi_bready;
+  wire [ID_WIDTH-1:0] read_expected_id =
+    read_owner_q == OWNER_DCACHE ? DCACHE_AXI_ID : ICACHE_AXI_ID;
+  wire read_expected_last = read_beat_q == read_len_q;
+  wire read_response_error = (axi_rid != read_expected_id) ||
+                             |axi_rresp ||
+                             (axi_rlast != read_expected_last);
+  wire read_terminal = axi_rlast || read_expected_last;
+  wire wb_response_error = (axi_bid != WRITEBACK_AXI_ID) || |axi_bresp;
 
   assign icache_req_ready = !icache_buf_valid_q;
   assign dcache_refill_req_ready = grant_dcache && axi_arready;
@@ -118,11 +130,13 @@ module edge_rv_lite_cache_biu #(
   assign icache_resp_valid = read_active_q &&
                              (read_owner_q == OWNER_ICACHE) && axi_rvalid;
   assign icache_resp_data = axi_rdata;
+  assign icache_resp_error = icache_resp_valid && read_response_error;
   assign dcache_refill_resp_valid = read_active_q &&
                                     (read_owner_q == OWNER_DCACHE) && axi_rvalid;
   assign dcache_refill_resp_data = axi_rdata;
-  assign dcache_refill_resp_last = dcache_refill_resp_valid && axi_rlast;
-  assign dcache_refill_resp_error = dcache_refill_resp_valid && |axi_rresp;
+  assign dcache_refill_resp_last = dcache_refill_resp_valid && read_terminal;
+  assign dcache_refill_resp_error = dcache_refill_resp_valid &&
+                                    read_response_error;
   assign axi_rready = read_active_q &&
     ((read_owner_q == OWNER_DCACHE) ? dcache_refill_resp_ready :
                                      icache_resp_ready);
@@ -140,9 +154,10 @@ module edge_rv_lite_cache_biu #(
   assign axi_wdata = wb_data_q;
   assign axi_wlast = 1'b1;
   assign axi_wstrb = {(DATA_WIDTH/8){1'b1}};
-  assign axi_wvalid = wb_valid_q && wb_aw_sent_q && !wb_w_sent_q;
+  assign axi_wvalid = wb_valid_q && !wb_w_sent_q;
   assign axi_bready = wb_valid_q && wb_aw_sent_q && wb_w_sent_q;
-  assign dcache_wb_complete = wb_b_fire && wb_last_q;
+  assign dcache_wb_complete = wb_b_fire && wb_last_q && !wb_response_error;
+  assign dcache_wb_error = wb_b_fire && wb_response_error;
 
   always @(posedge clk or negedge reset_n) begin
     if (!reset_n) begin
@@ -150,6 +165,8 @@ module edge_rv_lite_cache_biu #(
       icache_buf_addr_q <= {ADDR_WIDTH{1'b0}};
       read_active_q <= 1'b0;
       read_owner_q <= OWNER_ICACHE;
+      read_len_q <= {LEN_WIDTH{1'b0}};
+      read_beat_q <= {LEN_WIDTH{1'b0}};
     end else begin
       if (icache_req_valid && icache_req_ready) begin
         icache_buf_valid_q <= 1'b1;
@@ -158,9 +175,17 @@ module edge_rv_lite_cache_biu #(
       if (ar_fire) begin
         read_active_q <= 1'b1;
         read_owner_q <= grant_dcache ? OWNER_DCACHE : OWNER_ICACHE;
+        read_len_q <= axi_arlen;
+        read_beat_q <= {LEN_WIDTH{1'b0}};
         if (grant_icache) icache_buf_valid_q <= 1'b0;
       end
-      if (r_fire && axi_rlast) read_active_q <= 1'b0;
+      if (r_fire) begin
+        if (read_terminal) begin
+          read_active_q <= 1'b0;
+        end else begin
+          read_beat_q <= read_beat_q + {{(LEN_WIDTH-1){1'b0}}, 1'b1};
+        end
+      end
     end
   end
 
@@ -184,14 +209,12 @@ module edge_rv_lite_cache_biu #(
       if (axi_awvalid && axi_awready) wb_aw_sent_q <= 1'b1;
       if (axi_wvalid && axi_wready) wb_w_sent_q <= 1'b1;
       if (wb_b_fire) begin
-        wb_valid_q <= 1'b0;
         wb_aw_sent_q <= 1'b0;
         wb_w_sent_q <= 1'b0;
+        if (!wb_response_error) wb_valid_q <= 1'b0;
       end
     end
   end
-
-  wire unused_ids = |{axi_rid, axi_bid, axi_bresp};
 
   initial begin
     if (DATA_WIDTH != 128) $error("lite cache BIU requires 128-bit AXI");

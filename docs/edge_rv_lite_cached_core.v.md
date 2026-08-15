@@ -16,6 +16,11 @@ four 128-bit beats, plus the 128-bit dirty-line writeback stream and completion
 acknowledgement. These are the cache-to-BIU ports that the later
 `edge_core_top`-compatible wrapper will arbitrate onto AXI.
 
+Instruction refill errors pass through the maintained I-cache and lite adapter
+to the core fetch response. An errored refill satisfies the outstanding miss
+without updating the I-cache data or tag arrays, so bad AXI data cannot become
+an executable cache hit.
+
 Only lane 0 is connected. Lane 1, redirect-kill metadata, cache operations and
 backend pause inputs are tied inactive because the lite core cannot have a
 younger outstanding scalar memory operation. D-cache sequence and epoch fields

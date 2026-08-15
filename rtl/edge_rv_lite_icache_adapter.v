@@ -20,7 +20,8 @@ module edge_rv_lite_icache_adapter #(
   output wire [PC_WIDTH-1:0] cache_req_addr,
   input  wire                cache_resp_valid,
   output wire                cache_resp_ready,
-  input  wire [127:0]        cache_resp_bits
+  input  wire [127:0]        cache_resp_bits,
+  input  wire                cache_resp_error
 );
   reg pending_q;
   reg [1:0] word_q;
@@ -32,7 +33,7 @@ module edge_rv_lite_icache_adapter #(
   assign cache_req_addr = core_req_addr;
   assign cache_resp_ready = pending_q;
   assign core_resp_valid = cache_resp_valid && pending_q;
-  assign core_resp_error = 1'b0;
+  assign core_resp_error = cache_resp_error && pending_q;
   assign core_resp_data = word_q == 2'd0 ? cache_resp_bits[31:0] :
                           word_q == 2'd1 ? cache_resp_bits[63:32] :
                           word_q == 2'd2 ? cache_resp_bits[95:64] :

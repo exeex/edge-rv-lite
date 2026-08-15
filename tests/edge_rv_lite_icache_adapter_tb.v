@@ -17,6 +17,7 @@ module edge_rv_lite_icache_adapter_tb;
   reg cache_resp_valid = 1'b0;
   wire cache_resp_ready;
   reg [127:0] cache_resp_bits = 128'd0;
+  reg cache_resp_error = 1'b0;
 
   edge_rv_lite_icache_adapter dut (.*);
 
@@ -51,11 +52,12 @@ module edge_rv_lite_icache_adapter_tb;
     cache_resp_valid = 1'b0;
     core_req_valid = 1'b0;
     cache_resp_bits = {32'haaaa_0003, 96'd0};
+    cache_resp_error = 1'b1;
     cache_resp_valid = 1'b1;
     #1;
     if (!core_resp_valid || core_resp_data != 32'haaaa_0003)
       $fatal(1, "crossing request address was not retained");
-    if (core_resp_error) $fatal(1, "unexpected fetch error");
+    if (!core_resp_error) $fatal(1, "fetch error was not propagated");
     @(posedge clk);
 
     $display("TEST PASS: lite I-cache adapter selects words and crosses requests");

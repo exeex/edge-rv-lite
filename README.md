@@ -250,7 +250,10 @@ the maintained I/D caches. An optional stateful DTCM router bypasses D-cache for
 the configured base/mask window, acknowledges accepted stores, and retains the
 selected cache or DTCM read owner through its response. `edge_rv_lite_cache_biu` and
 `edge_rv_lite_axi_core` carry that hierarchy onto the existing 128-bit Edge AXI
-channel shape. `edge_core_lite_top` composes those proven boundaries with the
+channel shape. The cache BIU checks response IDs, response status, burst beat
+counts, and `RLAST`; failed instruction fills fault without populating I-cache,
+while failed dirty writeback beats remain buffered and retry. AW and W
+handshake independently. `edge_core_lite_top` composes those proven boundaries with the
 shared DTCM/accelerator subsystem and external AXI ownership mux.
 
 Below the issue-policy boundary, both products instantiate

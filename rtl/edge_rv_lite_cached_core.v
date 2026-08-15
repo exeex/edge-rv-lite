@@ -21,6 +21,7 @@ module edge_rv_lite_cached_core #(
   input  wire                   imem_refill_resp_valid,
   output wire                   imem_refill_resp_ready,
   input  wire [127:0]           imem_refill_resp_data,
+  input  wire                   imem_refill_resp_error,
 
   output wire                   dmem_refill_req_valid,
   input  wire                   dmem_refill_req_ready,
@@ -98,6 +99,7 @@ module edge_rv_lite_cached_core #(
   wire icache_resp_valid;
   wire icache_resp_ready;
   wire [127:0] icache_resp_bits;
+  wire icache_resp_error;
 
   wire dcache_load_req_valid;
   wire dcache_load_req_ready;
@@ -167,7 +169,8 @@ module edge_rv_lite_cached_core #(
     .cache_req_valid(icache_req_valid),
     .cache_req_ready(icache_req_ready), .cache_req_addr(icache_req_addr),
     .cache_resp_valid(icache_resp_valid),
-    .cache_resp_ready(icache_resp_ready), .cache_resp_bits(icache_resp_bits)
+    .cache_resp_ready(icache_resp_ready), .cache_resp_bits(icache_resp_bits),
+    .cache_resp_error(icache_resp_error)
   );
 
   generate if(ENABLE_DTCM_PORT) begin: g_dtcm
@@ -212,12 +215,14 @@ module edge_rv_lite_cached_core #(
     .invalidate_valid(1'b0), .invalidate_ready(),
     .fetch_resp_valid(icache_resp_valid),
     .fetch_resp_ready(icache_resp_ready), .fetch_resp_bits(icache_resp_bits),
+    .fetch_resp_error(icache_resp_error),
     .imem_req_valid(imem_refill_req_valid),
     .imem_req_ready(imem_refill_req_ready),
     .imem_req_addr(imem_refill_req_addr),
     .imem_resp_valid(imem_refill_resp_valid),
     .imem_resp_ready(imem_refill_resp_ready),
     .imem_resp_bits(imem_refill_resp_data),
+    .imem_resp_error(imem_refill_resp_error),
     .debug_icache_bytes(), .debug_hit(debug_icache_hit),
     .debug_miss_pending(debug_icache_miss_pending),
     .debug_invalidate_busy()

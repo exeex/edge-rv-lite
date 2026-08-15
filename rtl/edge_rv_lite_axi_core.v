@@ -86,6 +86,7 @@ module edge_rv_lite_axi_core #(
   wire imem_refill_resp_valid;
   wire imem_refill_resp_ready;
   wire [127:0] imem_refill_resp_data;
+  wire imem_refill_resp_error;
   wire dmem_refill_req_valid;
   wire dmem_refill_req_ready;
   wire [63:0] dmem_refill_req_addr;
@@ -114,6 +115,7 @@ module edge_rv_lite_axi_core #(
     .imem_refill_resp_valid(imem_refill_resp_valid),
     .imem_refill_resp_ready(imem_refill_resp_ready),
     .imem_refill_resp_data(imem_refill_resp_data),
+    .imem_refill_resp_error(imem_refill_resp_error),
     .dmem_refill_req_valid(dmem_refill_req_valid),
     .dmem_refill_req_ready(dmem_refill_req_ready),
     .dmem_refill_req_addr(dmem_refill_req_addr),
@@ -154,6 +156,7 @@ module edge_rv_lite_axi_core #(
     .icache_resp_valid(imem_refill_resp_valid),
     .icache_resp_ready(imem_refill_resp_ready),
     .icache_resp_data(imem_refill_resp_data),
+    .icache_resp_error(imem_refill_resp_error),
     .dcache_refill_req_valid(dmem_refill_req_valid),
     .dcache_refill_req_ready(dmem_refill_req_ready),
     .dcache_refill_req_addr(dmem_refill_req_addr),
@@ -168,6 +171,7 @@ module edge_rv_lite_axi_core #(
     .dcache_wb_data(dmem_clean_wb_data),
     .dcache_wb_last(dmem_clean_wb_last),
     .dcache_wb_complete(dmem_clean_wb_complete),
+    .dcache_wb_error(),
     .axi_araddr(biu_pad_araddr), .axi_arburst(biu_pad_arburst),
     .axi_arcache(biu_pad_arcache), .axi_arid(biu_pad_arid),
     .axi_arlen(biu_pad_arlen), .axi_arlock(biu_pad_arlock),

@@ -62,6 +62,7 @@ module edge_rv_lite_cached_core_tb;
     .imem_refill_resp_valid(imem_refill_resp_valid),
     .imem_refill_resp_ready(imem_refill_resp_ready),
     .imem_refill_resp_data(imem_refill_resp_data),
+    .imem_refill_resp_error(1'b0),
     .dmem_refill_req_valid(dmem_refill_req_valid),
     .dmem_refill_req_ready(1'b1),
     .dmem_refill_req_addr(dmem_refill_req_addr),
