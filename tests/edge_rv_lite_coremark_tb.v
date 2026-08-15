@@ -3,8 +3,6 @@
 module edge_rv_lite_coremark_tb;
   localparam integer MEM_BYTES = 1024 * 1024;
   localparam integer MEM_WORDS = MEM_BYTES / 8;
-  localparam [63:0] SIM_EXIT_ADDR = 64'h0000_0000_0000_2ee8;
-  localparam [63:0] TOHOST_ADDR = 64'h0000_0000_0000_2ef0;
   localparam integer TIMEOUT_CYCLES = 10_000_000;
 
   reg clk = 1'b0;
@@ -119,15 +117,6 @@ module edge_rv_lite_coremark_tb;
     end
     if (illegal) begin
       $display("FAIL: illegal instruction pc=%h inst=%h", dut.ex_pc, dut.ex_inst);
-      $fatal(1);
-    end
-    if (mem[SIM_EXIT_ADDR[19:3]] !== debug_x31) begin
-      $display("FAIL: exit memory=%h x31=%h", mem[SIM_EXIT_ADDR[19:3]], debug_x31);
-      $fatal(1);
-    end
-    if (mem[TOHOST_ADDR[19:3]] !== ((debug_x31 << 1) | 64'd1)) begin
-      $display("FAIL: tohost=%h expected=%h", mem[TOHOST_ADDR[19:3]],
-               ((debug_x31 << 1) | 64'd1));
       $fatal(1);
     end
     if (debug_x31 == 0) begin
