@@ -364,17 +364,17 @@ Yosys cells, or **34.7%**. LUT usage falls by **37.4%** and flip-flop usage by
 Reproduce the comparison with:
 
 ```sh
-STAREDGE_YOSYS_VARIANT=xilinx-top-compare-20260811 \
+EDGE_YOSYS_VARIANT=xilinx-top-compare-20260811 \
   ./synth/run_yosys.sh edge_core_top xilinx \
   synth/filelists/edge_existing.fl
-STAREDGE_YOSYS_VARIANT=xilinx-top-compare-20260811 \
+EDGE_YOSYS_VARIANT=xilinx-top-compare-20260811 \
   ./synth/run_yosys.sh edge_core_lite_top xilinx \
   synth/filelists/edge_lite_top.fl
 
-STAREDGE_YOSYS_VARIANT=xilinx-clean \
+EDGE_YOSYS_VARIANT=xilinx-clean \
   ./synth/run_yosys.sh edge_rv_top xilinx \
   synth/filelists/edge_rv.fl
-STAREDGE_YOSYS_VARIANT=xilinx-lite-cached \
+EDGE_YOSYS_VARIANT=xilinx-lite-cached \
   ./synth/run_yosys.sh edge_rv_lite_cached_core xilinx \
   src/edge-rv-lite/filelists/edge_rv_lite.fl
 ```
