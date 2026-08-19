@@ -518,7 +518,9 @@ Standalone Yosys `synth_xilinx -family xc7` estimate for `edge_fpu_alu`:
 ## 9. Experimental methodology
 
 Performance numbers are LLVM 22.1.8 Verilator checkpoints using identical
-software source on `edge-e3@rv` and `edge-e3@rv-lite`. Internal `rdcycle` is
+software source on `edge-rv@e3` and `edge-rv-lite@e3`. The naming convention
+is `rv_core@asic_core`: the name before `@` selects the scalar core and the
+name after `@` selects the attached ASIC product. Internal `rdcycle` is
 the primary metric; whole-harness cycles include boot and setup.
 
 Retired counts identify generated images, not toolchain-independent behavior.
@@ -539,7 +541,7 @@ Two boundaries are reported:
 
 ### 10.1 Scalar performance
 
-| Case | Metric | `edge-e3@rv` | `edge-e3@rv-lite` | Lite / RV |
+| Case | Metric | `edge-rv@e3` | `edge-rv-lite@e3` | Lite / RV |
 | --- | --- | ---: | ---: | ---: |
 | CoreMark, 2 iterations | cycles/iteration | 409,503 | 785,777 | 1.919x |
 | CoreMark | retired instructions | 616,228 | 616,228 | 1.000x |
@@ -554,14 +556,14 @@ cycles-per-iteration metric.
 
 ### 10.2 Tensor execution
 
-| Case | Metric | `edge-e3@rv` | `edge-e3@rv-lite` | Lite / RV |
-| --- | --- | ---: | ---: | ---: |
-| `tile8x8_stream64tokens` | X30 Tensor window | 534 | 539 | 1.009x |
-| `tile8x8_stream64tokens` | ideal / X30 utilization | 95.88% | 94.99% | -0.89 pp |
-| `matmul64x64_runtime_shape`, 64 tokens | X30 Tensor window | 4,660 | 4,699 | 1.008x |
-| `matmul64x64_runtime_shape`, 64 tokens | MAC utilization | 87.90% | 87.17% | -0.73 pp |
-| `matmul64x64_runtime_shape`, 128 tokens | X30 Tensor window | 8,772 | 8,785 | 1.001x |
-| `matmul64x64_runtime_shape`, 128 tokens | MAC utilization | 93.39% | 93.25% | -0.14 pp |
+| Case | `edge-rv@e3` cycles | `edge-rv-lite@e3` cycles | Lite / RV | Dual issue (`edge-rv@e3`) utilization | Single issue (`edge-rv-lite@e3`) utilization | Delta |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `tile8x8_stream64tokens` | 534 | 539 | 1.009x | 95.88% | 94.99% | -0.89 pp |
+| `matmul64x64_runtime_shape`, 64 tokens | 4,660 | 4,699 | 1.008x | 87.90% | 87.17% | -0.73 pp |
+| `matmul64x64_runtime_shape`, 128 tokens | 8,772 | 8,785 | 1.001x | 93.39% | 93.25% | -0.14 pp |
+
+Cycles are measured over the X30 Tensor window. Utilization is ideal/X30 for
+the stream case and MAC utilization for the two runtime-shape matmuls.
 
 The stream case performs 512 consecutive 8x8 vector steps with one WLD and one
 Tensor start. All 4096 BF16 outputs are checked after DTCM-to-AXI DMA. Lite
@@ -605,7 +607,7 @@ the reusable RV layer. Cache BRAM is unchanged.
 
 ### 10.4 Complete-product synthesis
 
-| Resource | `edge-e3@rv` | `edge-e3@rv-lite` | Lite delta | Lite / RV |
+| Resource | `edge-rv@e3` | `edge-rv-lite@e3` | Lite delta | Lite / RV |
 | --- | ---: | ---: | ---: | ---: |
 | Total cells | 283,882 | 185,360 | -98,522 | 65.3% |
 | LUT1-6 | 169,752 | 106,185 | -63,567 | 62.6% |
